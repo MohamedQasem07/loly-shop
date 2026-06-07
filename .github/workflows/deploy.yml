@@ -27,7 +27,7 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          VITE_BASE: /loly-store-manager/
+          VITE_BASE: /loly-shop/
           VITE_SUPABASE_URL: https://njjeyykycppcjoduhifp.supabase.co
           VITE_SUPABASE_ANON_KEY: sb_publishable_QRFD2cQeGYG6X7psOPnnyw_apY98tk7
       - uses: actions/upload-pages-artifact@v3
