@@ -11,6 +11,7 @@ import { useSyncStatus } from '@/data/useSync'
 import { syncNow } from '@/data/sync'
 import type { UserRole } from '@/lib/types'
 import { cn } from '@/lib/cn'
+import { LOGO_URL } from '@/lib/assets'
 
 interface NavItem {
   to: string
@@ -125,7 +126,7 @@ export function Layout() {
 function Brand() {
   return (
     <div className="flex items-center gap-3">
-      <img src="/logo.jpg" alt="Loly" className="w-11 h-11 rounded-2xl object-cover shadow-soft" />
+      <img src={LOGO_URL} alt="Loly" className="w-11 h-11 rounded-2xl object-cover shadow-soft" />
       <div className="leading-tight">
         <p className="font-display font-extrabold text-rose text-lg">Loly Store</p>
         <p className="text-[11px] text-cocoa-light font-semibold">إدارة المحل</p>
@@ -192,7 +193,7 @@ function Topbar() {
   return (
     <header className="sticky top-0 z-30 bg-cream/85 backdrop-blur border-b border-pink/40 px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
       <div className="lg:hidden flex items-center gap-2" onClick={() => navigate('/')}>
-        <img src="/logo.jpg" alt="Loly" className="w-9 h-9 rounded-xl object-cover" />
+        <img src={LOGO_URL} alt="Loly" className="w-9 h-9 rounded-xl object-cover" />
         <span className="font-display font-extrabold text-rose">Loly Store</span>
       </div>
       <div className="hidden lg:block" />

@@ -4,6 +4,7 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '@/store/auth'
 import { Field } from '@/components/ui'
 import { toast } from '@/store/ui'
+import { LOGO_URL } from '@/lib/assets'
 
 export default function Login() {
   const { session, signIn, signUp } = useAuth()
@@ -34,7 +35,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-blush via-cream to-pink/40">
       <div className="w-full max-w-sm">
         <div className="text-center mb-6">
-          <img src="/logo.jpg" alt="Loly Store" className="w-24 h-24 rounded-[2rem] mx-auto shadow-soft object-cover" />
+          <img src={LOGO_URL} alt="Loly Store" className="w-24 h-24 rounded-[2rem] mx-auto shadow-soft object-cover" />
           <h1 className="font-display text-2xl font-extrabold text-rose mt-4">Loly Store Manager</h1>
           <p className="text-cocoa-light text-sm mt-1">إدارة محلك بسهولة وأناقة</p>
         </div>

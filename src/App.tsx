@@ -18,12 +18,13 @@ import StockMovements from '@/pages/StockMovements'
 import Returns from '@/pages/Returns'
 import Users from '@/pages/Users'
 import type { ReactNode } from 'react'
+import { LOGO_URL } from '@/lib/assets'
 
 function Splash() {
   return (
     <div className="min-h-screen grid place-items-center bg-cream">
       <div className="text-center">
-        <img src="/logo.jpg" alt="Loly" className="w-20 h-20 rounded-3xl mx-auto shadow-soft mb-4 object-cover" />
+        <img src={LOGO_URL} alt="Loly" className="w-20 h-20 rounded-3xl mx-auto shadow-soft mb-4 object-cover" />
         <Spinner className="w-7 h-7 mx-auto" />
       </div>
     </div>
