@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { uuid } from '@/lib/ids'
 import { syncNow, refreshPending } from './sync'
 import { postSale, postPurchase, postExpense, postReturn, postVoidSale, postAdjust, recordOtherIncome } from './accounting'
+import { docNumber } from '@/lib/counters'
 import type {
   Product, Category, Supplier, Customer, Expense, Settings, Order, Discount,
 } from '@/lib/types'
@@ -169,16 +170,31 @@ export interface CreateSaleInput {
   invoiceDiscount?: number
   taxPercent?: number
   customer_id?: string | null
+  customerName?: string | null
+  customerPhone?: string | null
   cashier_id?: string | null
   note?: string | null
   status?: 'completed' | 'held'
 }
 
+/** Find a customer by phone, or create one — so every invoice can carry name + phone. */
+async function findOrCreateCustomer(name?: string | null, phone?: string | null): Promise<string | null> {
+  const ph = (phone ?? '').trim()
+  const nm = (name ?? '').trim()
+  if (!ph && !nm) return null
+  if (ph) {
+    const existing = await db.customers.filter((c) => (c.phone ?? '').trim() === ph).first()
+    if (existing) return existing.id
+  }
+  const cust = await saveCustomer({ name: nm || ph || 'عميل', phone: ph || null })
+  return cust.id
+}
+
 export async function createSale(input: CreateSaleInput) {
   const saleId = uuid()
-  const seq = await nextSeq('invoiceSeq')
-  const invoiceNo = `INV-${String(seq).padStart(6, '0')}`
+  const invoiceNo = await docNumber('INV')
   const created = nowISO()
+  const customerId = input.customer_id ?? (await findOrCreateCustomer(input.customerName, input.customerPhone))
 
   const lineRows = input.lines.map((l) => {
     const lineTotal = l.qty * l.unit_price - (l.discount ?? 0)
@@ -196,7 +212,7 @@ export async function createSale(input: CreateSaleInput) {
   const costTotal = lineRows.reduce((s, r) => s + r.unit_cost * r.qty, 0)
 
   const sale = {
-    id: saleId, invoice_no: invoiceNo, customer_id: input.customer_id ?? null,
+    id: saleId, invoice_no: invoiceNo, customer_id: customerId,
     cashier_id: input.cashier_id ?? null, status: input.status ?? 'completed',
     subtotal, discount: invoiceDiscount, tax, total, cost_total: costTotal,
     note: input.note ?? null, voided_at: null, voided_by: null, void_reason: null,
@@ -517,8 +533,7 @@ export interface CreateReturnInput {
 
 export async function createReturn(input: CreateReturnInput) {
   const returnId = uuid()
-  const seq = await nextSeq('returnSeq')
-  const returnNo = `RET-${String(seq).padStart(6, '0')}`
+  const returnNo = await docNumber('RET')
   const created = nowISO()
   const restock = input.restock ?? true
 

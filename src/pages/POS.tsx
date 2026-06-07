@@ -197,6 +197,27 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
   )
 }
 
+function CartQty({ id, qty }: { id: string; qty: number }) {
+  const cart = useCart()
+  const [v, setV] = useState(String(qty))
+  useEffect(() => { setV(String(qty)) }, [qty])
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      className="w-11 text-center font-bold text-sm bg-white border border-pink rounded-lg py-0.5 outline-none focus:border-rose"
+      value={v}
+      onChange={(e) => {
+        const s = e.target.value.replace(/[^0-9]/g, '')
+        setV(s)
+        const n = parseInt(s, 10)
+        if (n > 0) cart.setQty(id, n)
+      }}
+      onBlur={() => { if (!v || parseInt(v, 10) < 1) setV(String(qty)) }}
+    />
+  )
+}
+
 function CartPanel({ onCheckout }: { onCheckout: () => void }) {
   const cart = useCart()
   if (cart.items.length === 0) {
@@ -221,13 +242,7 @@ function CartPanel({ onCheckout }: { onCheckout: () => void }) {
               <button onClick={() => cart.dec(i.product_id)} className="w-7 h-7 rounded-full bg-white border border-pink grid place-items-center text-rose">
                 <Minus size={14} />
               </button>
-              <input
-                type="number"
-                inputMode="numeric"
-                className="w-11 text-center font-bold text-sm bg-white border border-pink rounded-lg py-0.5 outline-none focus:border-rose"
-                value={i.qty}
-                onChange={(e) => cart.setQty(i.product_id, +e.target.value || 0)}
-              />
+              <CartQty id={i.product_id} qty={i.qty} />
               <button onClick={() => cart.inc(i.product_id)} className="w-7 h-7 rounded-full bg-white border border-pink grid place-items-center text-rose">
                 <Plus size={14} />
               </button>
@@ -276,10 +291,10 @@ function CheckoutModal({
 }) {
   const cart = useCart()
   const methods = useLiveQuery(() => db.payment_methods.toArray(), []) ?? []
-  const customers = useLiveQuery(() => db.customers.toArray(), []) ?? []
   const total = cart.total()
   const [pays, setPays] = useState<Record<string, number>>({})
-  const [customerId, setCustomerId] = useState<string | null>(null)
+  const [custName, setCustName] = useState('')
+  const [custPhone, setCustPhone] = useState('')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState<{ invoiceNo: string } | null>(null)
@@ -319,7 +334,9 @@ function CheckoutModal({
         payments,
         invoiceDiscount: cart.invoiceDiscount,
         taxPercent: settings?.tax_percent ?? 0,
-        customer_id: customerId,
+        customer_id: null,
+        customerName: custName || null,
+        customerPhone: custPhone || null,
         cashier_id: cashierId,
         note: note || null,
       })
@@ -445,18 +462,10 @@ function CheckoutModal({
           )}
         </div>
 
-        {customers.length > 0 && (
-          <Field label="العميل (اختياري)">
-            <select className="input" value={customerId ?? ''} onChange={(e) => setCustomerId(e.target.value || null)}>
-              <option value="">— بدون —</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-        )}
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="اسم العميل"><input className="input" value={custName} onChange={(e) => setCustName(e.target.value)} placeholder="اختياري" /></Field>
+          <Field label="رقم الموبايل"><input className="input" dir="ltr" inputMode="tel" value={custPhone} onChange={(e) => setCustPhone(e.target.value)} placeholder="اختياري" /></Field>
+        </div>
 
         <Field label="ملاحظة (اختياري)">
           <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="ملاحظة على الفاتورة" />

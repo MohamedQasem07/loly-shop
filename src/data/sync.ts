@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { db } from '@/lib/db'
 import { SYNC_TABLES } from '@/lib/types'
+import { docNumber } from '@/lib/counters'
 
 // Postgres `numeric` columns arrive as strings via PostgREST — coerce them back to numbers.
 const NUMERIC_FIELDS: Record<string, string[]> = {
@@ -76,18 +77,51 @@ export async function pullAll() {
   await db.meta.put({ key: 'lastPull', value: Date.now() })
 }
 
-/** Push all queued local changes to Supabase, in insertion order (FK-safe). */
+function isDuplicateKey(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false
+  return error.code === '23505' || /duplicate key|already exists/i.test(error.message ?? '')
+}
+
+/** Regenerate a colliding invoice/return number (multi-device) and fix the local row. */
+async function renumber(table: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+  if (table === 'sales') {
+    const no = await docNumber('INV')
+    payload.invoice_no = no
+    await db.sales.update(payload.id as string, { invoice_no: no })
+  } else {
+    const no = await docNumber('RET')
+    payload.return_no = no
+    await db.returns.update(payload.id as string, { return_no: no })
+  }
+  return payload
+}
+
+/**
+ * Push queued local changes to Supabase, in insertion order (FK-safe).
+ * Resilient: one failing op never blocks the rest; invoice/return number
+ * collisions across devices are auto-renumbered and retried.
+ */
 export async function pushOutbox() {
   const ops = await db.outbox.orderBy('id').toArray()
   for (const op of ops) {
-    if (op.op === 'upsert') {
-      const { error } = await supabase.from(op.table).upsert(op.payload as never)
-      if (error) throw error
-    } else if (op.op === 'delete') {
-      const { error } = await supabase.from(op.table).delete().eq('id', op.rowId)
-      if (error) throw error
+    try {
+      if (op.op === 'delete') {
+        const { error } = await supabase.from(op.table).delete().eq('id', op.rowId)
+        if (error) throw error
+      } else {
+        let payload = op.payload as Record<string, unknown>
+        let { error } = await supabase.from(op.table).upsert(payload)
+        if (error && isDuplicateKey(error) && (op.table === 'sales' || op.table === 'returns')) {
+          payload = await renumber(op.table, payload)
+          const retry = await supabase.from(op.table).upsert(payload)
+          error = retry.error
+        }
+        if (error) throw error
+      }
+      await db.outbox.delete(op.id!)
+    } catch {
+      await db.outbox.update(op.id!, { tries: (op.tries ?? 0) + 1 })
     }
-    await db.outbox.delete(op.id!)
   }
 }
 
@@ -103,7 +137,8 @@ export async function syncNow(opts: { pull?: boolean } = {}) {
   syncStatus.set({ syncing: true, error: null })
   try {
     await pushOutbox()
-    if (opts.pull) await pullAll()
+    // converge across devices only when everything local has been pushed
+    if ((await db.outbox.count()) === 0) await pullAll()
     syncStatus.set({ lastSyncAt: Date.now(), online: true })
   } catch (e) {
     syncStatus.set({ error: e instanceof Error ? e.message : 'خطأ في المزامنة' })

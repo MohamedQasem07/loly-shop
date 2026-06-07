@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Package, Pencil, Plus, Search, ImageOff } from 'lucide-react'
+import { Package, Pencil, Plus, Search, ImageOff, Store } from 'lucide-react'
 import { db } from '@/lib/db'
 import { money, num } from '@/lib/format'
 import { Empty, Field, Modal, PageHeader } from '@/components/ui'
-import { saveProduct, type ProductInput } from '@/data/repo'
+import { saveProduct, save, type ProductInput } from '@/data/repo'
 import { useAuth } from '@/store/auth'
 import { toast } from '@/store/ui'
 import type { Product } from '@/lib/types'
@@ -21,6 +21,11 @@ export default function Products() {
   const [adding, setAdding] = useState(false)
 
   const catName = (id: string | null) => categories.find((c) => c.id === id)?.name_ar ?? '—'
+
+  async function toggleOnline(p: Product) {
+    await save('products', { ...p, online: !p.online })
+    toast(p.online ? 'اتشال من المتجر' : 'اتنشر في المتجر 🛍️')
+  }
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase()
@@ -101,9 +106,14 @@ export default function Products() {
                   <div className="flex items-start justify-between gap-2">
                     <p className="font-bold text-cocoa truncate">{p.name}</p>
                     {isAdmin && (
-                      <button onClick={() => setEditing(p)} className="text-cocoa-light hover:text-rose shrink-0">
-                        <Pencil size={16} />
-                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button onClick={() => toggleOnline(p)} title={p.online ? 'معروض في المتجر — اضغط للإخفاء' : 'مش في المتجر — اضغط للعرض'} className={p.online ? 'text-ok' : 'text-cocoa-light/40 hover:text-cocoa-light'}>
+                          <Store size={16} />
+                        </button>
+                        <button onClick={() => setEditing(p)} className="text-cocoa-light hover:text-rose">
+                          <Pencil size={16} />
+                        </button>
+                      </div>
                     )}
                   </div>
                   <p className="text-xs text-cocoa-light">{catName(p.category_id)}{p.color ? ` · ${p.color}` : ''}</p>
