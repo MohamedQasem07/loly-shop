@@ -163,6 +163,8 @@ function ProductModal({ product, onClose }: { product: Product | null; onClose: 
     supplier_id: product?.supplier_id ?? null,
     is_active: product?.is_active ?? true,
     notes: product?.notes ?? '',
+    online: product?.online ?? false,
+    online_price: product?.online_price ?? null,
   })
   const [busy, setBusy] = useState(false)
 
@@ -266,6 +268,20 @@ function ProductModal({ product, onClose }: { product: Product | null; onClose: 
           <input type="checkbox" checked={form.is_active} onChange={(e) => set({ is_active: e.target.checked })} />
           المنتج نشط (متاح للبيع)
         </label>
+        <label className="sm:col-span-2 flex items-center gap-3 rounded-2xl bg-blush/40 p-3 cursor-pointer">
+          <input type="checkbox" checked={form.online ?? false} onChange={(e) => set({ online: e.target.checked })} />
+          <div>
+            <p className="font-bold text-cocoa text-sm">🛍️ اعرضه في المتجر الأونلاين</p>
+            <p className="text-xs text-cocoa-light">العملاء هيشوفوه ويطلبوه من لينك المتجر</p>
+          </div>
+        </label>
+        {form.online && (
+          <div className="sm:col-span-2">
+            <Field label="سعر المتجر (اختياري — سيبه فاضي = نفس سعر البيع)">
+              <input className="input" type="number" inputMode="decimal" value={form.online_price ?? ''} onChange={(e) => set({ online_price: e.target.value === '' ? null : +e.target.value })} />
+            </Field>
+          </div>
+        )}
       </div>
     </Modal>
   )

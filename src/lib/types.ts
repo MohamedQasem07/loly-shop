@@ -120,6 +120,8 @@ export interface Product {
   supplier_id: string | null
   is_active: boolean
   notes: string | null
+  online: boolean
+  online_price: number | null
   created_at: string
   updated_at: string
 }
@@ -269,7 +271,57 @@ export interface Settings {
   allow_negative_stock: boolean
   receipt_footer: string | null
   theme: Record<string, string> | null
+  store_open: boolean
+  shipping_fee: number
+  store_whatsapp: string | null
   updated_at: string
+}
+
+export type OrderStatus = 'new' | 'confirmed' | 'preparing' | 'shipped' | 'delivered' | 'cancelled'
+export type OrderPayment = 'cod' | 'instapay' | 'other'
+
+export interface Order {
+  id: string
+  order_no: string
+  customer_name: string
+  customer_phone: string
+  address: string | null
+  status: OrderStatus
+  payment: OrderPayment
+  paid: boolean
+  subtotal: number
+  discount: number
+  shipping: number
+  total: number
+  note: string | null
+  sale_id: string | null
+  created_at: string
+}
+
+export interface OrderItem {
+  id: string
+  order_id: string
+  product_id: string | null
+  product_name: string
+  qty: number
+  unit_price: number
+  line_total: number
+}
+
+export type DiscountScope = 'all' | 'category' | 'product'
+
+export interface Discount {
+  id: string
+  name: string
+  type: 'percent' | 'amount'
+  value: number
+  scope: DiscountScope
+  category_id: string | null
+  product_id: string | null
+  is_active: boolean
+  starts_at: string | null
+  ends_at: string | null
+  created_at: string
 }
 
 /** Names of all synced tables (order matters for FK-safe push). */
@@ -296,6 +348,9 @@ export const SYNC_TABLES = [
   'profiles',
   'journal_entries',
   'journal_lines',
+  'discounts',
+  'orders',
+  'order_items',
 ] as const
 
 export type SyncTable = (typeof SYNC_TABLES)[number]

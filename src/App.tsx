@@ -18,6 +18,8 @@ import StockMovements from '@/pages/StockMovements'
 import Returns from '@/pages/Returns'
 import Users from '@/pages/Users'
 import Accounting from '@/pages/Accounting'
+import Orders from '@/pages/Orders'
+import Store from '@/pages/Store'
 import type { ReactNode } from 'react'
 import { LOGO_URL } from '@/lib/assets'
 
@@ -43,6 +45,7 @@ function Routed() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/store" element={<Store />} />
       <Route
         element={
           <Protected>
@@ -64,6 +67,7 @@ function Routed() {
         <Route path="/returns" element={<Returns />} />
         <Route path="/users" element={<Users />} />
         <Route path="/accounting" element={<Accounting />} />
+        <Route path="/orders" element={<Orders />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

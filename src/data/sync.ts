@@ -4,7 +4,7 @@ import { SYNC_TABLES } from '@/lib/types'
 
 // Postgres `numeric` columns arrive as strings via PostgREST — coerce them back to numbers.
 const NUMERIC_FIELDS: Record<string, string[]> = {
-  products: ['price', 'cost', 'stock_qty', 'low_stock_threshold'],
+  products: ['price', 'cost', 'stock_qty', 'low_stock_threshold', 'online_price'],
   suppliers: ['balance'],
   sales: ['subtotal', 'discount', 'tax', 'total', 'cost_total'],
   sale_items: ['qty', 'unit_price', 'unit_cost', 'discount', 'line_total'],
@@ -17,8 +17,11 @@ const NUMERIC_FIELDS: Record<string, string[]> = {
   treasury_movements: ['amount'],
   cash_sessions: ['opening_cash', 'closing_cash', 'expected_cash', 'difference'],
   expenses: ['amount'],
-  settings: ['tax_percent'],
+  settings: ['tax_percent', 'shipping_fee'],
   journal_lines: ['debit', 'credit'],
+  orders: ['subtotal', 'discount', 'shipping', 'total'],
+  order_items: ['qty', 'unit_price', 'line_total'],
+  discounts: ['value'],
 }
 
 function coerce(table: string, row: Record<string, unknown>) {

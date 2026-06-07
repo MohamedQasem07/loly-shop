@@ -254,3 +254,17 @@ export async function postOpeningBalances(cash: number, inventoryValue: number, 
   lines.push({ account: byCode[ACC.capital], credit: total })
   await post(build('opening', null, created, 'الأرصدة الافتتاحية / رأس المال', userId ?? null, lines))
 }
+
+/** Other income (e.g. shipping fees collected). Dr cash/bank, Cr other income. */
+export async function recordOtherIncome(amount: number, methodId: string, note: string | null, userId?: string | null) {
+  if (!amount || amount <= 0) return
+  const { byCode } = await maps()
+  const created = nowISO()
+  const method = await db.payment_methods.get(methodId)
+  const acc = method?.account_id ?? byCode[ACC.cash]
+  await putRow('treasury_movements', { id: uuid(), payment_method_id: methodId, direction: 'in', amount, ref_table: 'income', ref_id: null, note: note ?? 'إيراد آخر', created_by: userId ?? null, created_at: created })
+  await post(build('payment_in', null, created, note ?? 'إيراد آخر', userId ?? null, [
+    { account: acc, debit: amount },
+    { account: byCode[ACC.otherIncome], credit: amount },
+  ]))
+}

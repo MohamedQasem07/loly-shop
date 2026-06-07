@@ -1,9 +1,9 @@
 import { db } from '@/lib/db'
 import { uuid } from '@/lib/ids'
 import { syncNow, refreshPending } from './sync'
-import { postSale, postPurchase, postExpense, postReturn, postVoidSale, postAdjust } from './accounting'
+import { postSale, postPurchase, postExpense, postReturn, postVoidSale, postAdjust, recordOtherIncome } from './accounting'
 import type {
-  Product, Category, Supplier, Customer, Expense, Settings,
+  Product, Category, Supplier, Customer, Expense, Settings, Order, Discount,
 } from '@/lib/types'
 
 const nowISO = () => new Date().toISOString()
@@ -63,6 +63,8 @@ export interface ProductInput {
   supplier_id?: string | null
   is_active?: boolean
   notes?: string | null
+  online?: boolean
+  online_price?: number | null
 }
 
 export async function saveProduct(input: ProductInput): Promise<Product> {
@@ -82,6 +84,8 @@ export async function saveProduct(input: ProductInput): Promise<Product> {
     supplier_id: input.supplier_id ?? null,
     is_active: input.is_active ?? true,
     notes: input.notes ?? null,
+    online: input.online ?? existing?.online ?? false,
+    online_price: input.online_price ?? existing?.online_price ?? null,
     created_at: existing?.created_at ?? nowISO(),
     updated_at: nowISO(),
   }
@@ -594,6 +598,9 @@ export async function saveSettings(patch: Partial<Settings>): Promise<Settings> 
     allow_negative_stock: patch.allow_negative_stock ?? current?.allow_negative_stock ?? false,
     receipt_footer: patch.receipt_footer ?? current?.receipt_footer ?? null,
     theme: patch.theme ?? current?.theme ?? null,
+    store_open: patch.store_open ?? current?.store_open ?? true,
+    shipping_fee: patch.shipping_fee ?? current?.shipping_fee ?? 0,
+    store_whatsapp: patch.store_whatsapp ?? current?.store_whatsapp ?? null,
     updated_at: nowISO(),
   }
   await db.settings.put(row)
@@ -633,4 +640,58 @@ export async function closeCashSession(sessionId: string, closingCash: number, n
     difference: diff, closed_at: nowISO(), note: note ?? s.note,
   }
   return save('cash_sessions', updated)
+}
+
+// ------------------------------------------------------------------
+// Online orders & discounts (admin side)
+// ------------------------------------------------------------------
+export async function updateOrderStatus(orderId: string, patch: Partial<Order>) {
+  const o = await db.orders.get(orderId)
+  if (!o) return
+  return save('orders', { ...o, ...patch })
+}
+
+/** Confirm an online order → create a real sale (stock + treasury + accounting) and mark delivered. */
+export async function convertOrderToSale(orderId: string, cashierId?: string | null) {
+  const order = await db.orders.get(orderId)
+  if (!order || order.sale_id) return
+  const items = await db.order_items.where('order_id').equals(orderId).toArray()
+  const methods = await db.payment_methods.toArray()
+  const code = order.payment === 'instapay' ? 'instapay' : 'cash'
+  const method = methods.find((m) => m.code === code) ?? methods.find((m) => m.code === 'cash')
+  const lines: CartLine[] = []
+  for (const it of items) {
+    const p = it.product_id ? await db.products.get(it.product_id) : undefined
+    lines.push({ product_id: it.product_id ?? '', product_name: it.product_name, qty: it.qty, unit_price: it.unit_price, unit_cost: p?.cost ?? 0 })
+  }
+  const goodsTotal = +(order.subtotal - order.discount).toFixed(2)
+  const { sale } = await createSale({
+    lines,
+    payments: method ? [{ payment_method_id: method.id, amount: goodsTotal }] : [],
+    invoiceDiscount: order.discount,
+    customer_id: null,
+    cashier_id: cashierId ?? null,
+    note: `أوردر أونلاين ${order.order_no} — ${order.customer_name}`,
+  })
+  if (order.shipping > 0 && method) await recordOtherIncome(order.shipping, method.id, `شحن ${order.order_no}`, cashierId)
+  await save('orders', { ...order, sale_id: sale.id, status: 'delivered', paid: true })
+  return sale
+}
+
+export async function saveDiscount(input: Partial<Discount> & { name: string; value: number }) {
+  const existing = input.id ? await db.discounts.get(input.id) : undefined
+  const row: Discount = {
+    id: input.id ?? uuid(),
+    name: input.name,
+    type: input.type ?? 'percent',
+    value: input.value,
+    scope: input.scope ?? 'all',
+    category_id: input.category_id ?? null,
+    product_id: input.product_id ?? null,
+    is_active: input.is_active ?? true,
+    starts_at: input.starts_at ?? null,
+    ends_at: input.ends_at ?? null,
+    created_at: existing?.created_at ?? nowISO(),
+  }
+  return save('discounts', row)
 }

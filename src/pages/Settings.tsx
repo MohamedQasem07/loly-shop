@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Plus, Store, Tags, Loader2, ShieldAlert, KeyRound } from 'lucide-react'
+import { Plus, Store, Tags, Loader2, ShieldAlert, KeyRound, Globe, Copy, ExternalLink } from 'lucide-react'
 import { db } from '@/lib/db'
 import { supabase } from '@/lib/supabase'
 import { Field, PageHeader } from '@/components/ui'
@@ -26,6 +26,7 @@ export default function Settings() {
     <div className="space-y-5">
       <PageHeader title="الإعدادات" subtitle="بيانات المحل والنظام" />
       <StoreForm settings={settings} />
+      <StoreSection settings={settings} />
       <CategoriesManager />
       <AccountSection />
     </div>
@@ -157,6 +158,66 @@ function StoreForm({ settings }: { settings?: SettingsT }) {
         <button className="btn-primary" onClick={submit} disabled={busy}>
           {busy && <Loader2 size={18} className="animate-spin" />} حفظ
         </button>
+      </div>
+    </div>
+  )
+}
+
+function StoreSection({ settings }: { settings?: SettingsT }) {
+  const [open, setOpen] = useState(true)
+  const [shipping, setShipping] = useState(0)
+  const [whatsapp, setWhatsapp] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (settings) {
+      setOpen(settings.store_open ?? true)
+      setShipping(settings.shipping_fee ?? 0)
+      setWhatsapp(settings.store_whatsapp ?? '')
+    }
+  }, [settings])
+
+  const link = `${window.location.origin}${import.meta.env.BASE_URL}#/store`
+
+  async function submit() {
+    setBusy(true)
+    try {
+      await saveSettings({ store_open: open, shipping_fee: shipping, store_whatsapp: whatsapp || null })
+      toast('تم حفظ إعدادات المتجر 🌸')
+    } catch {
+      toast('حصل خطأ', 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-center gap-2 mb-4 text-cocoa">
+        <Globe size={18} className="text-rose" />
+        <h2 className="font-bold">المتجر الأونلاين</h2>
+      </div>
+      <div className="rounded-2xl bg-blush/40 p-3 mb-4">
+        <p className="text-xs text-cocoa-light mb-1">لينك المتجر — ابعته لعملائك:</p>
+        <p className="text-sm font-bold text-rose break-all" dir="ltr">{link}</p>
+        <div className="flex gap-2 mt-2">
+          <button onClick={() => { navigator.clipboard?.writeText(link); toast('اتنسخ اللينك') }} className="btn-ghost text-sm py-1.5"><Copy size={14} /> نسخ</button>
+          <a href={link} target="_blank" rel="noreferrer" className="btn-ghost text-sm py-1.5"><ExternalLink size={14} /> افتح المتجر</a>
+        </div>
+      </div>
+      <div className="grid sm:grid-cols-2 gap-4">
+        <Field label="مصاريف الشحن"><input className="input" type="number" inputMode="decimal" value={shipping || ''} onChange={(e) => setShipping(+e.target.value || 0)} /></Field>
+        <Field label="واتساب المتجر" hint="بكود الدولة مثلاً 201001234567"><input className="input" dir="ltr" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} /></Field>
+      </div>
+      <label className="flex items-center gap-3 rounded-2xl bg-blush/40 p-3 cursor-pointer mt-3">
+        <input type="checkbox" checked={open} onChange={(e) => setOpen(e.target.checked)} />
+        <div>
+          <p className="font-bold text-cocoa text-sm">المتجر مفتوح للطلبات</p>
+          <p className="text-xs text-cocoa-light">لو قفلته، العملاء مش هيقدروا يطلبوا</p>
+        </div>
+      </label>
+      <div className="flex justify-end mt-4">
+        <button className="btn-primary" onClick={submit} disabled={busy}>{busy && <Loader2 size={18} className="animate-spin" />} حفظ</button>
       </div>
     </div>
   )
