@@ -56,6 +56,7 @@ export interface PaymentMethod {
   name_ar: string | null
   is_active: boolean
   sort_order: number
+  account_id: string | null
 }
 
 export interface ExpenseCategory {
@@ -63,6 +64,45 @@ export interface ExpenseCategory {
   name: string
   name_ar: string | null
   is_active: boolean
+  account_id: string | null
+}
+
+export type AccountType = 'asset' | 'liability' | 'equity' | 'revenue' | 'expense'
+
+export interface Account {
+  id: string
+  code: string
+  name: string
+  name_ar: string | null
+  type: AccountType
+  parent_id: string | null
+  is_group: boolean
+  is_system: boolean
+  is_active: boolean
+  sort_order: number
+  created_at: string
+}
+
+export interface JournalEntry {
+  id: string
+  entry_no: string | null
+  entry_date: string
+  memo: string | null
+  source: string | null
+  source_id: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export interface JournalLine {
+  id: string
+  entry_id: string
+  account_id: string | null
+  debit: number
+  credit: number
+  memo: string | null
+  partner_type: string | null
+  partner_id: string | null
 }
 
 export interface Product {
@@ -239,6 +279,7 @@ export const SYNC_TABLES = [
   'customers',
   'payment_methods',
   'expense_categories',
+  'accounts',
   'products',
   'sales',
   'sale_items',
@@ -253,6 +294,8 @@ export const SYNC_TABLES = [
   'expenses',
   'settings',
   'profiles',
+  'journal_entries',
+  'journal_lines',
 ] as const
 
 export type SyncTable = (typeof SYNC_TABLES)[number]

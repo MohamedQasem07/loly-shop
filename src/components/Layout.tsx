@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
-  BarChart3, Boxes, Building2, Home, LogOut, MoreHorizontal, Package,
+  BarChart3, Boxes, Building2, Calculator, Home, LogOut, MoreHorizontal, Package,
   ReceiptText, RefreshCw, Settings as SettingsIcon, ShoppingBag, Truck,
   Undo2, UserCog, Users, Wallet, Wifi, WifiOff, X,
 } from 'lucide-react'
@@ -32,6 +32,7 @@ const NAV: NavItem[] = [
   { to: '/customers', label: 'العملاء', icon: Users, roles: ['owner', 'manager', 'cashier'] },
   { to: '/returns', label: 'المرتجعات', icon: Undo2, roles: ['owner', 'manager'] },
   { to: '/reports', label: 'التقارير', icon: BarChart3, roles: ['owner', 'manager', 'viewer'] },
+  { to: '/accounting', label: 'الحسابات', icon: Calculator, roles: ['owner', 'manager'] },
   { to: '/users', label: 'المستخدمين', icon: UserCog, roles: ['owner'] },
   { to: '/settings', label: 'الإعدادات', icon: SettingsIcon, roles: ['owner', 'manager'] },
 ]

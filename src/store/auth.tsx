@@ -37,14 +37,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function bootstrap(s: Session) {
     try {
-      const localEmpty = (await db.settings.count()) === 0
-      if (navigator.onLine && localEmpty) {
+      const needsPull = (await db.settings.count()) === 0 || (await db.accounts.count()) === 0
+      if (navigator.onLine && needsPull) {
         await pullAll()
       }
       const p = await loadProfile(s.user.id)
       setProfile(p)
       startSync()
-      void syncNow({ pull: !localEmpty ? false : false })
+      void syncNow()
     } catch (e) {
       // offline or pull failed — keep going with whatever is local
       const p = await loadProfile(s.user.id)

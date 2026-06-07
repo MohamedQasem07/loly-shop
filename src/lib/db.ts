@@ -3,6 +3,7 @@ import type {
   Product, Category, Supplier, Customer, PaymentMethod, ExpenseCategory,
   Sale, SaleItem, SalePayment, Purchase, PurchaseItem, ReturnDoc, ReturnItem,
   StockMovement, TreasuryMovement, CashSession, Expense, Settings, Profile,
+  Account, JournalEntry, JournalLine,
 } from './types'
 
 /** A pending change waiting to be pushed to Supabase. */
@@ -45,6 +46,9 @@ class LolyDB extends Dexie {
   expenses!: Table<Expense, string>
   settings!: Table<Settings, number>
   profiles!: Table<Profile, string>
+  accounts!: Table<Account, string>
+  journal_entries!: Table<JournalEntry, string>
+  journal_lines!: Table<JournalLine, string>
   outbox!: Table<OutboxOp, number>
   meta!: Table<MetaRow, string>
 
@@ -72,6 +76,12 @@ class LolyDB extends Dexie {
       profiles: 'id, role',
       outbox: '++id, table, createdAt',
       meta: 'key',
+    })
+
+    this.version(2).stores({
+      accounts: 'id, code, type, parent_id',
+      journal_entries: 'id, entry_date, source, created_at',
+      journal_lines: 'id, entry_id, account_id, partner_id',
     })
   }
 }

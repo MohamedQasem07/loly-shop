@@ -18,6 +18,7 @@ const NUMERIC_FIELDS: Record<string, string[]> = {
   cash_sessions: ['opening_cash', 'closing_cash', 'expected_cash', 'difference'],
   expenses: ['amount'],
   settings: ['tax_percent'],
+  journal_lines: ['debit', 'credit'],
 }
 
 function coerce(table: string, row: Record<string, unknown>) {

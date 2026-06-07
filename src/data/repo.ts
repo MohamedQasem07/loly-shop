@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { uuid } from '@/lib/ids'
 import { syncNow, refreshPending } from './sync'
+import { postSale, postPurchase, postExpense, postReturn, postVoidSale, postAdjust } from './accounting'
 import type {
   Product, Category, Supplier, Customer, Expense, Settings,
 } from '@/lib/types'
@@ -253,6 +254,7 @@ export async function createSale(input: CreateSaleInput) {
 
   await refreshPending()
   void syncNow()
+  if (sale.status === 'completed') await postSale(sale, lineRows, input.payments)
   return { sale, items: lineRows }
 }
 
@@ -355,6 +357,7 @@ export async function createPurchase(input: CreatePurchaseInput) {
 
   await refreshPending()
   void syncNow()
+  await postPurchase(purchase, lineRows)
   return purchase
 }
 
@@ -397,6 +400,7 @@ export async function addExpense(input: ExpenseInput): Promise<Expense> {
 
   await refreshPending()
   void syncNow()
+  await postExpense(exp)
   return exp
 }
 
@@ -425,6 +429,7 @@ export async function adjustStock(productId: string, deltaQty: number, type: 'ad
   })
   await refreshPending()
   void syncNow()
+  await postAdjust(productId, deltaQty, note, userId)
 }
 
 // ------------------------------------------------------------------
@@ -432,6 +437,8 @@ export async function adjustStock(productId: string, deltaQty: number, type: 'ad
 // ------------------------------------------------------------------
 export async function voidSale(saleId: string, reason: string, userId?: string | null) {
   const created = nowISO()
+  const pre = await db.sales.get(saleId)
+  if (!pre || pre.status === 'voided') return
   const queued: Array<{ table: string; id: string; payload: unknown }> = []
   await db.transaction(
     'rw',
@@ -479,6 +486,10 @@ export async function voidSale(saleId: string, reason: string, userId?: string |
   )
   await refreshPending()
   void syncNow()
+  const vsale = await db.sales.get(saleId)
+  const vitems = await db.sale_items.where('sale_id').equals(saleId).toArray()
+  const vpays = await db.sale_payments.where('sale_id').equals(saleId).toArray()
+  if (vsale) await postVoidSale(vsale, vitems, vpays)
 }
 
 // ------------------------------------------------------------------
@@ -563,6 +574,7 @@ export async function createReturn(input: CreateReturnInput) {
 
   await refreshPending()
   void syncNow()
+  await postReturn(ret, lineRows)
   return ret
 }
 

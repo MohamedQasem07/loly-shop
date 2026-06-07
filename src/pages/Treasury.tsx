@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ArrowDownCircle, ArrowUpCircle, Lock, Unlock, Wallet } from 'lucide-react'
+import { ArrowDownCircle, ArrowLeftRight, ArrowUpCircle, HandCoins, Lock, PiggyBank, Unlock, Wallet } from 'lucide-react'
 import { db } from '@/lib/db'
 import { money, fmtDateTime, fmtDate } from '@/lib/format'
 import { Field, Modal, PageHeader, Empty } from '@/components/ui'
 import { openCashSession, closeCashSession } from '@/data/repo'
+import { ownerCapital, ownerDrawings, transferFunds } from '@/data/accounting'
+import type { PaymentMethod } from '@/lib/types'
 import { useAuth } from '@/store/auth'
 import { toast } from '@/store/ui'
 
@@ -61,6 +63,8 @@ export default function Treasury() {
           <p className="text-sm text-cocoa-light">مفيش جلسة مفتوحة. افتح جلسة في بداية الوردية وأقفلها في الآخر عشان تطابق الكاش.</p>
         )}
       </div>
+
+      <FinanceOps methods={methods} userId={profile?.id ?? null} />
 
       {/* Recent movements */}
       <div className="card p-4">
@@ -134,6 +138,70 @@ function CloseModal({ session, onClose }: { session: { id: string; opening_cash:
       footer={<><button className="btn-ghost" onClick={onClose}>إلغاء</button><button className="btn-primary" onClick={go} disabled={busy}>إقفال</button></>}>
       <p className="text-sm text-cocoa-light mb-3">عُد الكاش الفعلي في الدرج واكتبه، والنظام هيحسب الفرق مع المتوقع.</p>
       <Field label="الكاش الفعلي في الدرج"><input type="number" inputMode="decimal" className="input" value={actual || ''} onChange={(e) => setActual(+e.target.value || 0)} autoFocus /></Field>
+    </Modal>
+  )
+}
+
+function FinanceOps({ methods, userId }: { methods: PaymentMethod[]; userId: string | null }) {
+  const [op, setOp] = useState<null | 'capital' | 'drawings' | 'transfer'>(null)
+  return (
+    <>
+      <div className="card p-5">
+        <h2 className="font-bold text-cocoa mb-3">عمليات مالية</h2>
+        <div className="grid grid-cols-3 gap-2">
+          <button onClick={() => setOp('capital')} className="btn-ghost !flex-col py-3 h-auto gap-1"><PiggyBank size={20} className="text-ok" /><span className="text-xs">رأس مال</span></button>
+          <button onClick={() => setOp('drawings')} className="btn-ghost !flex-col py-3 h-auto gap-1"><HandCoins size={20} className="text-danger" /><span className="text-xs">مسحوبات</span></button>
+          <button onClick={() => setOp('transfer')} className="btn-ghost !flex-col py-3 h-auto gap-1"><ArrowLeftRight size={20} className="text-rose" /><span className="text-xs">تحويل</span></button>
+        </div>
+      </div>
+      {op && <FinanceModal op={op} methods={methods} userId={userId} onClose={() => setOp(null)} />}
+    </>
+  )
+}
+
+function FinanceModal({ op, methods, userId, onClose }: { op: 'capital' | 'drawings' | 'transfer'; methods: PaymentMethod[]; userId: string | null; onClose: () => void }) {
+  const sorted = methods.slice().sort((a, b) => a.sort_order - b.sort_order)
+  const [amount, setAmount] = useState(0)
+  const [methodId, setMethodId] = useState(sorted[0]?.id ?? '')
+  const [toMethodId, setToMethodId] = useState(sorted[1]?.id ?? sorted[0]?.id ?? '')
+  const [busy, setBusy] = useState(false)
+  const title = op === 'capital' ? 'إيداع رأس مال' : op === 'drawings' ? 'مسحوبات شخصية' : 'تحويل بين الخزائن'
+
+  async function go() {
+    if (!amount || amount <= 0) return toast('اكتب المبلغ', 'error')
+    if (op === 'transfer' && methodId === toMethodId) return toast('اختر خزينتين مختلفتين', 'error')
+    setBusy(true)
+    try {
+      if (op === 'capital') await ownerCapital(amount, methodId, userId)
+      else if (op === 'drawings') await ownerDrawings(amount, methodId, userId)
+      else await transferFunds(methodId, toMethodId, amount, userId)
+      toast('تمت العملية 🌸')
+      onClose()
+    } catch {
+      toast('حصل خطأ', 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title={title}
+      footer={<><button className="btn-ghost" onClick={onClose}>إلغاء</button><button className="btn-primary" onClick={go} disabled={busy}>تأكيد</button></>}>
+      <div className="space-y-4">
+        <Field label="المبلغ"><input type="number" inputMode="decimal" className="input" value={amount || ''} onChange={(e) => setAmount(+e.target.value || 0)} autoFocus /></Field>
+        <Field label={op === 'transfer' ? 'من خزينة' : 'الخزينة'}>
+          <select className="input" value={methodId} onChange={(e) => setMethodId(e.target.value)}>
+            {sorted.map((m) => <option key={m.id} value={m.id}>{m.name_ar ?? m.name}</option>)}
+          </select>
+        </Field>
+        {op === 'transfer' && (
+          <Field label="إلى خزينة">
+            <select className="input" value={toMethodId} onChange={(e) => setToMethodId(e.target.value)}>
+              {sorted.map((m) => <option key={m.id} value={m.id}>{m.name_ar ?? m.name}</option>)}
+            </select>
+          </Field>
+        )}
+      </div>
     </Modal>
   )
 }

@@ -17,6 +17,7 @@ import Customers from '@/pages/Customers'
 import StockMovements from '@/pages/StockMovements'
 import Returns from '@/pages/Returns'
 import Users from '@/pages/Users'
+import Accounting from '@/pages/Accounting'
 import type { ReactNode } from 'react'
 import { LOGO_URL } from '@/lib/assets'
 
@@ -62,6 +63,7 @@ function Routed() {
         <Route path="/settings" element={<Settings />} />
         <Route path="/returns" element={<Returns />} />
         <Route path="/users" element={<Users />} />
+        <Route path="/accounting" element={<Accounting />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
