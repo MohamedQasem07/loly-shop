@@ -1,18 +1,18 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
-  CheckCircle2, ImageOff, Minus, Plus, Printer, Search, ShoppingCart, Trash2, X,
+  CheckCircle2, ImageOff, Minus, Plus, Printer, Receipt, RotateCcw, ScanLine, ShoppingCart, Trash2, Undo2, X,
 } from 'lucide-react'
 import { db } from '@/lib/db'
-import { money, num } from '@/lib/format'
+import { money, num, fmtDateTime } from '@/lib/format'
 import { useCart } from '@/store/cart'
 import { useAuth } from '@/store/auth'
 import { toast } from '@/store/ui'
-import { createSale, type PaymentLine } from '@/data/repo'
+import { createSale, createReturn, voidSale, type PaymentLine } from '@/data/repo'
 import { printReceipt } from '@/lib/receipt'
 import { Modal, Field, Empty } from '@/components/ui'
 import { cn } from '@/lib/cn'
-import type { Product, Settings } from '@/lib/types'
+import type { Product, Settings, Sale, SaleItem } from '@/lib/types'
 
 export default function POS() {
   const { profile } = useAuth()
@@ -24,8 +24,12 @@ export default function POS() {
   const [cat, setCat] = useState('all')
   const [cartOpen, setCartOpen] = useState(false)
   const [checkout, setCheckout] = useState(false)
+  const [recentOpen, setRecentOpen] = useState(false)
+  const searchRef = useRef<HTMLInputElement>(null)
 
   const allowNegative = settings?.allow_negative_stock ?? false
+
+  useEffect(() => { searchRef.current?.focus() }, [])
 
   const list = useMemo(() => {
     const term = q.trim().toLowerCase()
@@ -45,6 +49,24 @@ export default function POS() {
       return
     }
     cart.add({ product_id: p.id, name: p.name, price: p.price, cost: p.cost, stock: p.stock_qty, image_url: p.image_url })
+    searchRef.current?.focus()
+  }
+
+  /** Barcode scan (gun ends with Enter) or quick name search → add the matching item. */
+  function onSearchEnter() {
+    const term = q.trim().toLowerCase()
+    if (!term) return
+    const exact = products.find(
+      (p) => p.is_active && ((p.barcode ?? '').toLowerCase() === term || (p.sku ?? '').toLowerCase() === term),
+    )
+    const target = exact ?? (list.length === 1 ? list[0] : null)
+    if (target) {
+      addToCart(target)
+      setQ('')
+    } else if (list.length === 0) {
+      toast('مفيش منتج بالباركود/الاسم ده', 'error')
+    }
+    searchRef.current?.focus()
   }
 
   return (
@@ -53,9 +75,19 @@ export default function POS() {
       <div>
         <div className="flex gap-2 mb-3">
           <div className="relative flex-1">
-            <Search size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-cocoa-light" />
-            <input className="input pr-10" placeholder="ابحث عن منتج…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <ScanLine size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-rose" />
+            <input
+              ref={searchRef}
+              className="input pr-10"
+              placeholder="امسح باركود أو ابحث بالاسم…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onSearchEnter() } }}
+            />
           </div>
+          <button onClick={() => setRecentOpen(true)} className="btn-ghost shrink-0" title="آخر الفواتير">
+            <Receipt size={18} />
+          </button>
         </div>
         <div className="flex gap-2 overflow-x-auto pb-2 mb-3 -mx-1 px-1">
           <Chip active={cat === 'all'} onClick={() => setCat('all')}>الكل</Chip>
@@ -137,6 +169,16 @@ export default function POS() {
           onClose={() => setCheckout(false)}
         />
       )}
+
+      {recentOpen && (
+        <RecentSalesModal
+          settings={settings ?? null}
+          cashierName={profile?.full_name ?? null}
+          userId={profile?.id ?? null}
+          isAdmin={profile?.role === 'owner' || profile?.role === 'manager'}
+          onClose={() => setRecentOpen(false)}
+        />
+      )}
     </div>
   )
 }
@@ -179,7 +221,13 @@ function CartPanel({ onCheckout }: { onCheckout: () => void }) {
               <button onClick={() => cart.dec(i.product_id)} className="w-7 h-7 rounded-full bg-white border border-pink grid place-items-center text-rose">
                 <Minus size={14} />
               </button>
-              <span className="w-6 text-center font-bold text-sm">{num(i.qty)}</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                className="w-11 text-center font-bold text-sm bg-white border border-pink rounded-lg py-0.5 outline-none focus:border-rose"
+                value={i.qty}
+                onChange={(e) => cart.setQty(i.product_id, +e.target.value || 0)}
+              />
               <button onClick={() => cart.inc(i.product_id)} className="w-7 h-7 rounded-full bg-white border border-pink grid place-items-center text-rose">
                 <Plus size={14} />
               </button>
@@ -421,4 +469,119 @@ function CheckoutModal({
 /** Heuristic: cash method carries the change. */
 function cashChangeMethod(methods: { id: string; code: string }[]): string | null {
   return methods.find((m) => m.code === 'cash')?.id ?? null
+}
+
+function RecentSalesModal({ settings, cashierName, userId, isAdmin, onClose }: { settings: Settings | null; cashierName: string | null; userId: string | null; isAdmin: boolean; onClose: () => void }) {
+  const sales = useLiveQuery(() => db.sales.orderBy('created_at').reverse().limit(40).toArray(), []) ?? []
+  const methods = useLiveQuery(() => db.payment_methods.toArray(), []) ?? []
+  const [returnSale, setReturnSale] = useState<Sale | null>(null)
+
+  async function reprint(s: Sale) {
+    const items = await db.sale_items.where('sale_id').equals(s.id).toArray()
+    const pays = await db.sale_payments.where('sale_id').equals(s.id).toArray()
+    printReceipt({
+      invoiceNo: s.invoice_no, date: new Date(s.created_at),
+      lines: items.map((i) => ({ name: i.product_name, qty: i.qty, unit_price: i.unit_price, line_total: i.line_total })),
+      subtotal: s.subtotal, discount: s.discount, tax: s.tax, total: s.total,
+      payments: pays.map((p) => ({ name: methods.find((m) => m.id === p.payment_method_id)?.name_ar ?? '', amount: p.amount })),
+      paid: s.total, change: 0, settings, cashier: cashierName,
+    })
+  }
+
+  async function doVoid(s: Sale) {
+    if (!isAdmin) return toast('الإلغاء للمالك/المدير فقط', 'error')
+    const reason = window.prompt(`سبب إلغاء فاتورة ${s.invoice_no}؟`)
+    if (reason === null) return
+    try {
+      await voidSale(s.id, reason || 'بدون سبب', userId)
+      toast('تم إلغاء الفاتورة')
+    } catch {
+      toast('حصل خطأ', 'error')
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title="آخر الفواتير" wide>
+      {sales.length === 0 ? (
+        <Empty icon={<Receipt size={36} />} title="لسه مفيش فواتير" />
+      ) : (
+        <div className="space-y-2">
+          {sales.map((s) => (
+            <div key={s.id} className={cn('flex items-center gap-2 rounded-2xl p-3 border', s.status === 'voided' ? 'bg-danger/5 border-danger/20' : 'bg-blush/40 border-pink/40')}>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-cocoa">{s.invoice_no} {s.status === 'voided' && <span className="text-danger text-xs">(ملغاة)</span>}</p>
+                <p className="text-[11px] text-cocoa-light">{fmtDateTime(s.created_at)}</p>
+              </div>
+              <span className="font-bold text-rose">{money(s.total)}</span>
+              <button onClick={() => reprint(s)} className="w-8 h-8 grid place-items-center rounded-xl bg-white border border-pink text-cocoa" title="طباعة"><Printer size={16} /></button>
+              {s.status !== 'voided' && <button onClick={() => setReturnSale(s)} className="w-8 h-8 grid place-items-center rounded-xl bg-white border border-pink text-rose" title="مرتجع"><Undo2 size={16} /></button>}
+              {isAdmin && s.status !== 'voided' && <button onClick={() => doVoid(s)} className="w-8 h-8 grid place-items-center rounded-xl bg-white border border-danger/30 text-danger" title="إلغاء الفاتورة"><X size={16} /></button>}
+            </div>
+          ))}
+        </div>
+      )}
+      {returnSale && <ReturnSaleModal sale={returnSale} userId={userId} onClose={() => setReturnSale(null)} onDone={() => setReturnSale(null)} />}
+    </Modal>
+  )
+}
+
+function ReturnSaleModal({ sale, userId, onClose, onDone }: { sale: Sale; userId: string | null; onClose: () => void; onDone: () => void }) {
+  const items = (useLiveQuery(() => db.sale_items.where('sale_id').equals(sale.id).toArray(), [sale.id]) ?? []) as SaleItem[]
+  const methods = useLiveQuery(() => db.payment_methods.toArray(), []) ?? []
+  const [qtys, setQtys] = useState<Record<string, number>>({})
+  const [methodId, setMethodId] = useState<string | null>(null)
+  const [restock, setRestock] = useState(true)
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const total = useMemo(() => items.reduce((s, it) => s + (qtys[it.id] || 0) * it.unit_price, 0), [items, qtys])
+
+  function returnAll() {
+    const all: Record<string, number> = {}
+    for (const it of items) all[it.id] = it.qty
+    setQtys(all)
+  }
+
+  async function save() {
+    const lines = items.filter((it) => (qtys[it.id] || 0) > 0).map((it) => ({ product_id: it.product_id ?? '', product_name: it.product_name, qty: qtys[it.id], unit_price: it.unit_price }))
+    if (!lines.length) return toast('حدد كمية مرتجعة', 'error')
+    setBusy(true)
+    try {
+      await createReturn({ sale_id: sale.id, customer_id: sale.customer_id, lines, refund_method_id: methodId, restock, reason: reason || null, created_by: userId })
+      toast('تم تسجيل المرتجع 🌸')
+      onDone()
+    } catch {
+      toast('حصل خطأ', 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`مرتجع فاتورة ${sale.invoice_no}`}
+      footer={<><button className="btn-ghost" onClick={onClose}>رجوع</button><button className="btn-primary" onClick={save} disabled={busy || total <= 0}>حفظ ({money(total)})</button></>}>
+      <div className="space-y-3">
+        <button onClick={returnAll} className="btn-ghost w-full text-sm"><RotateCcw size={16} /> إرجاع الفاتورة بالكامل</button>
+        {items.map((it) => (
+          <div key={it.id} className="flex items-center gap-3 bg-blush/40 rounded-2xl p-2.5">
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-sm text-cocoa truncate">{it.product_name}</p>
+              <p className="text-xs text-cocoa-light">اتباع {num(it.qty)} · {money(it.unit_price)}</p>
+            </div>
+            <input type="number" inputMode="numeric" min={0} max={it.qty} className="input w-20 py-1.5 text-center" placeholder="0" value={qtys[it.id] || ''} onChange={(e) => setQtys((q) => ({ ...q, [it.id]: Math.min(it.qty, Math.max(0, +e.target.value || 0)) }))} />
+          </div>
+        ))}
+        <Field label="استرجاع الفلوس عن طريق">
+          <select className="input" value={methodId ?? ''} onChange={(e) => setMethodId(e.target.value || null)}>
+            <option value="">— بدون استرجاع نقدي —</option>
+            {methods.map((m) => <option key={m.id} value={m.id}>{m.name_ar ?? m.name}</option>)}
+          </select>
+        </Field>
+        <Field label="السبب"><input className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="مقاس/عيب/تبديل…" /></Field>
+        <label className="flex items-center gap-2 text-sm font-semibold text-cocoa cursor-pointer">
+          <input type="checkbox" checked={restock} onChange={(e) => setRestock(e.target.checked)} /> رجوع الأصناف للمخزون
+        </label>
+      </div>
+    </Modal>
+  )
 }
