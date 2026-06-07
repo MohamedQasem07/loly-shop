@@ -145,7 +145,7 @@ function SideLink({ item }: { item: NavItem }) {
       className={({ isActive }) =>
         cn(
           'flex items-center gap-3 rounded-2xl px-3.5 py-2.5 font-semibold transition',
-          isActive ? 'bg-rose text-white shadow-soft' : 'text-cocoa-light hover:bg-blush hover:text-cocoa',
+          isActive ? 'bg-rose-grad text-white shadow-soft' : 'text-cocoa-light hover:bg-blush hover:text-cocoa',
         )
       }
     >

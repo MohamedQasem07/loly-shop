@@ -201,14 +201,14 @@ export default function Dashboard() {
 
 function Stat({ icon, label, value, tone }: { icon: ReactNode; label: string; value: string; tone: 'rose' | 'gold' | 'cocoa' | 'danger' }) {
   const tones: Record<string, string> = {
-    rose: 'bg-rose/10 text-rose',
-    gold: 'bg-gold/15 text-gold-dark',
-    cocoa: 'bg-cocoa/10 text-cocoa',
-    danger: 'bg-danger/10 text-danger',
+    rose: 'bg-rose-grad text-white',
+    gold: 'bg-gold-grad text-white',
+    cocoa: 'bg-cocoa text-white',
+    danger: 'bg-danger text-white',
   }
   return (
-    <div className="card p-4">
-      <div className={`w-10 h-10 rounded-2xl grid place-items-center mb-3 ${tones[tone]}`}>{icon}</div>
+    <div className="card p-4 hover:shadow-soft transition">
+      <div className={`w-10 h-10 rounded-2xl grid place-items-center mb-3 shadow-soft ${tones[tone]}`}>{icon}</div>
       <p className="text-xs text-cocoa-light font-semibold">{label}</p>
       <p className="font-display text-xl font-extrabold text-cocoa mt-0.5">{value}</p>
     </div>

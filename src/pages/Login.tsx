@@ -35,7 +35,10 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-blush via-cream to-pink/40">
       <div className="w-full max-w-sm">
         <div className="text-center mb-6">
-          <img src={LOGO_URL} alt="Loly Store" className="w-24 h-24 rounded-[2rem] mx-auto shadow-soft object-cover" />
+          <div className="relative w-24 h-24 mx-auto">
+            <div className="absolute inset-0 rounded-[2rem] bg-rose/30 blur-2xl" />
+            <img src={LOGO_URL} alt="Loly Store" className="relative w-24 h-24 rounded-[2rem] shadow-soft object-cover animate-floaty" />
+          </div>
           <h1 className="font-display text-2xl font-extrabold text-rose mt-4">Loly Store Manager</h1>
           <p className="text-cocoa-light text-sm mt-1">إدارة محلك بسهولة وأناقة</p>
         </div>
