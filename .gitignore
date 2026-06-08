@@ -13,3 +13,7 @@ dev-dist
 *.tsbuildinfo
 vite.config.js
 vite.config.d.ts
+
+# design handoff (not part of the app)
+Loly Shop.zip
+design-handoff/

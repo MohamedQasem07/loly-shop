@@ -2,6 +2,20 @@
 
 نظام إدارة محل **Loly Store** (إكسسوارات — مصر، EGP). تطبيق ويب/PWA يشتغل **أوفلاين** ويزامن مع Supabase.
 
+## 🎨 المهمة الحالية (جاهزة للتنفيذ فورًا) — تطبيق تصميم «جلام روز»
+محمد عايز تجديد شكل الفرونت-اند (البرنامج + المتجر) احترافي. استعان بـ«كلود ديزاين» (claude.ai) اللي طلّع ٣ اتجاهات، واختار **«جلام روز» (Glam Rose)**: حيوي وفخم — **وردي مندرج + لمسات ذهبية + كروت أنضف بأنيميشن خفيف + شارات خصم ذهبي + قلوب مفضّلة + شريط دفع ثابت أسفل صفحة المنتج**. اتبنى **بنفس أسماء توكنزنا/كلاساتنا بالظبط** (قيم مطوّرة بس) فالتركيب شبه drop-in.
+
+**ملفات التصميم (متترفعش على git):** `D:\Loly Shop\Loly Shop.zip` + متفكوكة في `design-handoff/loly/`. الأهم: `Loly Store Manager.html` (نظام التصميم كامل في الـ`<head>`) · `ui.js` (markup الكومبوننتس بجلام روز) · `screen-{login,dashboard,pos,products,reports,store}.js` (markup كل شاشة — مرجع) · `store-directions.js` (الاتجاهات الـ٣). باگ حجم اللوجو في البروتوتايب = مشكلة Tailwind-CDN بس، **مالهاش علاقة بالـ Vite build الحقيقي**.
+
+**نظام جلام روز (نفس الأسماء، قيم جديدة) — للـ `tailwind.config.ts` + `src/index.css`:**
+- ألوان: `rose` #E85B9E/light #F49ABF/dark #D13B83 · `pink` #F8C8DC/soft #FCE7F0 · `blush` #FCE7F0 · `cream` #FFF7F0 · `gold` #D9A441/light #E9C877/dark #B9852A · `cocoa` #5B3A28/light #8A6A55 · ok #3FAE78 warn #E0A33C danger #E5556E
+- خطوط: **Cairo** (body/sans) + **Tajawal** (display) — **self-host عشان الأوفلاين** (`@fontsource/cairo`+`@fontsource/tajawal` أو woff2 محلي، مش Google CDN).
+- radius: xl 1rem / 2xl 1.25rem / 3xl 1.75rem · shadows: `soft` 0 8px 28px -10px rgba(209,59,131,.30) · `card` 0 4px 18px -8px rgba(91,58,40,.14) · `glow` 0 0 0 4px rgba(232,91,158,.12) · `lift` 0 18px 40px -14px rgba(209,59,131,.42)
+- تدرّجات: `rose-grad` 135deg #F06CA8→#D13B83 · `gold-grad` 135deg #E9C877→#D9A441 · `cream-grad` 180deg #FFF7F0→#FCE7F0 · أنيميشن: fadeIn/pop/floaty
+- كلاسات index.css: `.btn` + `.btn-primary`(bg-rose-grad)/`.btn-gold`(bg-gold-grad)/`.btn-ghost`/`.btn-soft`/`.btn-danger`/`.btn-icon` · `.card`(rounded-3xl shadow-card border-pink/40)/`.card-hover` · `.input`(focus ring-rose/10)/`.label` · `.chip`+`chip-rose/gold/ok/warn/danger/ink` · `.nav-link` · body bg `linear-gradient(180deg,#FFF7F0,#FDE9F1) fixed` · `.font-display`=Tajawal.
+
+**الخطة:** (١) حدّث `tailwind.config.ts`+`src/index.css` بالقيم/الكلاسات دي → كل الـ١٩ صفحة + المتجر يتجدّدوا تلقائيًا. (٢) self-host الخطين. (٣) لمسات أخيرة على الشاشات المهمة (المتجر/POS/Dashboard/Login) بالرجوع لـ`screen-*.js`. (٤) **غيّر العرض فقط — متلمسش المنطق/الداتا/الـrouting/RTL**؛ سيب كل `useLiveQuery`/props/توقيعات الدوال زي ما هي. (٥) `npm run lint`+`npm run build` لازم يعدّوا. (٦) `git push`=نشر. (موجود في .gitignore: `Loly Shop.zip` + `design-handoff/`.)
+
 ## التشغيل
 ```bash
 npm install
