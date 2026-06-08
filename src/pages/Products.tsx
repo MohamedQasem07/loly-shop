@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Package, Pencil, Plus, Search, ImageOff, Store } from 'lucide-react'
+import { Package, Pencil, Plus, Search, ImageOff, Store, X } from 'lucide-react'
 import { db } from '@/lib/db'
 import { money, num } from '@/lib/format'
 import { Empty, Field, Modal, PageHeader } from '@/components/ui'
@@ -166,6 +166,7 @@ function ProductModal({ product, onClose }: { product: Product | null; onClose: 
     barcode: product?.barcode ?? '',
     category_id: product?.category_id ?? null,
     image_url: product?.image_url ?? '',
+    images: product?.images ?? [],
     price: product?.price ?? 0,
     cost: product?.cost ?? 0,
     stock_qty: product?.stock_qty ?? 0,
@@ -178,8 +179,12 @@ function ProductModal({ product, onClose }: { product: Product | null; onClose: 
     online_price: product?.online_price ?? null,
   })
   const [busy, setBusy] = useState(false)
+  const [newImage, setNewImage] = useState('')
 
   const set = (patch: Partial<ProductInput>) => setForm((f) => ({ ...f, ...patch }))
+  const gallery = form.images ?? []
+  const addImage = () => { if (newImage.trim()) { set({ images: [...gallery, newImage.trim()] }); setNewImage('') } }
+  const removeImage = (i: number) => set({ images: gallery.filter((_, j) => j !== i) })
 
   async function save() {
     if (!form.name.trim()) return toast('اكتب اسم المنتج', 'error')
@@ -266,8 +271,23 @@ function ProductModal({ product, onClose }: { product: Product | null; onClose: 
           </select>
         </Field>
         <div className="sm:col-span-2">
-          <span className="label">صورة المنتج</span>
-          <ImageUpload value={form.image_url ?? ''} onChange={(url) => set({ image_url: url })} folder="products" hint="JPG / PNG / WebP · حتى ٥ ميجا · بتظهر في المتجر" />
+          <span className="label">صورة المنتج الأساسية (الغلاف)</span>
+          <ImageUpload value={form.image_url ?? ''} onChange={(url) => set({ image_url: url })} folder="products" hint="JPG / PNG / WebP · حتى ٥ ميجا · بتظهر في المتجر وفي الكاشير" />
+        </div>
+        <div className="sm:col-span-2">
+          <span className="label">صور إضافية (معرض المنتج)</span>
+          {gallery.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-1 mb-2">
+              {gallery.map((url, i) => (
+                <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden border border-pink/60">
+                  <img src={url} alt="" className="w-full h-full object-cover" />
+                  <button type="button" onClick={() => removeImage(i)} className="absolute top-0.5 left-0.5 bg-white/90 hover:bg-white rounded-full p-0.5 text-danger shadow" title="إزالة"><X size={13} /></button>
+                </div>
+              ))}
+            </div>
+          )}
+          <ImageUpload value={newImage} onChange={setNewImage} folder="products" hint="ارفع صورة (أو الصق رابط) ثم اضغط «أضف للمعرض»" />
+          {newImage.trim() && <button type="button" onClick={addImage} className="btn-ghost text-sm py-2 mt-2"><Plus size={15} /> أضف للمعرض</button>}
         </div>
         <div className="sm:col-span-2">
           <Field label="ملاحظات">

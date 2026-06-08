@@ -10,7 +10,7 @@ import { cn } from '@/lib/cn'
 import { LOGO_URL } from '@/lib/assets'
 import { toast } from '@/store/ui'
 
-interface SP { id: string; name: string; category_id: string | null; image_url: string | null; color: string | null; price: number; stock_qty: number; created_at?: string }
+interface SP { id: string; name: string; category_id: string | null; image_url: string | null; color: string | null; price: number; stock_qty: number; created_at?: string; images?: string[] }
 interface SC { id: string; name: string; name_ar: string | null; sort_order: number }
 interface SD { id: string; type: string; value: number; scope: string; category_id: string | null; product_id: string | null }
 interface SZ { governorate: string; fee: number; sort_order: number }
@@ -382,6 +382,8 @@ function ProductDetail({ p, info, catName, unit, inCart, related, priceOf, onAdd
   onOpen: (id: string) => void; onBack: () => void
 }) {
   const [qty, setQty] = useState(1)
+  const gallery = [p.image_url, ...(p.images ?? [])].filter(Boolean) as string[]
+  const [mainImg, setMainImg] = useState(gallery[0] ?? '')
   const hasDisc = unit < p.price
   const off = hasDisc ? Math.round((1 - unit / p.price) * 100) : 0
   const out = p.stock_qty <= 0
@@ -408,10 +410,19 @@ function ProductDetail({ p, info, catName, unit, inCart, related, priceOf, onAdd
         <div className="lg:sticky lg:top-24 self-start">
           <div className="card p-3">
             <div className="aspect-square rounded-2xl bg-blush overflow-hidden grid place-items-center text-rose/40 relative">
-              {p.image_url ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" /> : <ImageOff size={56} />}
+              {mainImg ? <img src={mainImg} alt={p.name} className="w-full h-full object-cover" /> : <ImageOff size={56} />}
               {hasDisc && <span className="absolute top-3 right-3 bg-rose text-white text-xs font-extrabold rounded-full px-3 py-1 shadow">خصم {off}%</span>}
               <button onClick={share} className="absolute top-3 left-3 bg-white/90 hover:bg-white text-cocoa rounded-full p-2 shadow transition" aria-label="مشاركة"><Share2 size={16} /></button>
             </div>
+            {gallery.length > 1 && (
+              <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
+                {gallery.map((url, i) => (
+                  <button key={i} onClick={() => setMainImg(url)} className={cn('w-16 h-16 rounded-xl overflow-hidden border-2 shrink-0 transition', mainImg === url ? 'border-rose' : 'border-pink/40 hover:border-rose/50')}>
+                    <img src={url} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

@@ -56,6 +56,7 @@ export interface ProductInput {
   barcode?: string | null
   category_id?: string | null
   image_url?: string | null
+  images?: string[]
   price: number
   cost: number
   stock_qty?: number
@@ -77,6 +78,7 @@ export async function saveProduct(input: ProductInput): Promise<Product> {
     barcode: input.barcode ?? null,
     category_id: input.category_id ?? null,
     image_url: input.image_url ?? null,
+    images: input.images ?? existing?.images ?? [],
     price: Number(input.price) || 0,
     cost: Number(input.cost) || 0,
     stock_qty: existing ? existing.stock_qty : Number(input.stock_qty) || 0,

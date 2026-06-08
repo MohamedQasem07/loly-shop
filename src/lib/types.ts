@@ -113,6 +113,7 @@ export interface Product {
   name: string
   category_id: string | null
   image_url: string | null
+  images: string[]
   price: number
   cost: number
   stock_qty: number
