@@ -136,7 +136,7 @@ function OrderCard({ order, items, userId, storeName }: {
           <span className="font-bold text-cocoa">{order.customer_name}</span>
           <a href={`tel:${order.customer_phone}`} className="text-cocoa-light flex items-center gap-1" dir="ltr"><Phone size={13} /> {order.customer_phone}</a>
         </div>
-        {order.address && <p className="text-xs text-cocoa-light mt-1">📍 {order.address}</p>}
+        {(order.governorate || order.address) && <p className="text-xs text-cocoa-light mt-1">📍 {order.governorate && <span className="font-semibold text-cocoa">{order.governorate}</span>}{order.governorate && order.address ? ' — ' : ''}{order.address}</p>}
         {order.note && <p className="text-xs text-cocoa-light mt-1">📝 {order.note}</p>}
       </div>
 

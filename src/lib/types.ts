@@ -309,6 +309,7 @@ export interface Order {
   coupon_code: string | null
   coupon_discount: number
   points_used: number
+  governorate: string | null
   created_at: string
 }
 
@@ -335,6 +336,15 @@ export interface Discount {
   is_active: boolean
   starts_at: string | null
   ends_at: string | null
+  created_at: string
+}
+
+export interface ShippingZone {
+  id: string
+  governorate: string
+  fee: number
+  is_active: boolean
+  sort_order: number
   created_at: string
 }
 
@@ -379,6 +389,7 @@ export const SYNC_TABLES = [
   'journal_lines',
   'discounts',
   'coupons',
+  'shipping_zones',
   'orders',
   'order_items',
 ] as const

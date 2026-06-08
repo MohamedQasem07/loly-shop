@@ -3,7 +3,7 @@ import type {
   Product, Category, Supplier, Customer, PaymentMethod, ExpenseCategory,
   Sale, SaleItem, SalePayment, Purchase, PurchaseItem, ReturnDoc, ReturnItem,
   StockMovement, TreasuryMovement, CashSession, Expense, Settings, Profile,
-  Account, JournalEntry, JournalLine, Order, OrderItem, Discount, Coupon,
+  Account, JournalEntry, JournalLine, Order, OrderItem, Discount, Coupon, ShippingZone,
 } from './types'
 
 /** A pending change waiting to be pushed to Supabase. */
@@ -53,6 +53,7 @@ class LolyDB extends Dexie {
   order_items!: Table<OrderItem, string>
   discounts!: Table<Discount, string>
   coupons!: Table<Coupon, string>
+  shipping_zones!: Table<ShippingZone, string>
   outbox!: Table<OutboxOp, number>
   meta!: Table<MetaRow, string>
 
@@ -96,6 +97,10 @@ class LolyDB extends Dexie {
 
     this.version(4).stores({
       coupons: 'id, code, is_active',
+    })
+
+    this.version(5).stores({
+      shipping_zones: 'id, governorate, is_active, sort_order',
     })
   }
 }

@@ -4,7 +4,7 @@ import { syncNow, refreshPending } from './sync'
 import { postSale, postPurchase, postExpense, postReturn, postVoidSale, postAdjust, recordOtherIncome } from './accounting'
 import { docNumber } from '@/lib/counters'
 import type {
-  Product, Category, Supplier, Customer, Expense, Settings, Order, Discount, Coupon,
+  Product, Category, Supplier, Customer, Expense, Settings, Order, Discount, Coupon, ShippingZone,
 } from '@/lib/types'
 
 const nowISO = () => new Date().toISOString()
@@ -759,4 +759,17 @@ export async function saveCoupon(input: Partial<Coupon> & { code: string }) {
     created_at: existing?.created_at ?? nowISO(),
   }
   return save('coupons', row)
+}
+
+export async function saveShippingZone(input: Partial<ShippingZone> & { governorate: string; fee: number }) {
+  const existing = input.id ? await db.shipping_zones.get(input.id) : undefined
+  const row: ShippingZone = {
+    id: input.id ?? uuid(),
+    governorate: input.governorate.trim(),
+    fee: Number(input.fee) || 0,
+    is_active: input.is_active ?? true,
+    sort_order: input.sort_order ?? existing?.sort_order ?? 99,
+    created_at: existing?.created_at ?? nowISO(),
+  }
+  return save('shipping_zones', row)
 }

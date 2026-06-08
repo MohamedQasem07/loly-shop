@@ -13,6 +13,7 @@ import { toast } from '@/store/ui'
 interface SP { id: string; name: string; category_id: string | null; image_url: string | null; color: string | null; price: number; stock_qty: number }
 interface SC { id: string; name: string; name_ar: string | null; sort_order: number }
 interface SD { id: string; type: string; value: number; scope: string; category_id: string | null; product_id: string | null }
+interface SZ { governorate: string; fee: number; sort_order: number }
 interface SInfo {
   store_name: string; logo_url: string | null; store_cover_url: string | null; store_about: string | null
   store_phone: string | null; store_whatsapp: string | null
@@ -60,6 +61,7 @@ export default function Store() {
   const [products, setProducts] = useState<SP[]>([])
   const [cats, setCats] = useState<SC[]>([])
   const [discounts, setDiscounts] = useState<SD[]>([])
+  const [zones, setZones] = useState<SZ[]>([])
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('all')
@@ -70,16 +72,18 @@ export default function Store() {
 
   useEffect(() => {
     ;(async () => {
-      const [pi, pp, pc, pd] = await Promise.all([
+      const [pi, pp, pc, pd, pz] = await Promise.all([
         supabase.from('store_info').select('*').maybeSingle(),
         supabase.from('store_products').select('*'),
         supabase.from('store_categories').select('*'),
         supabase.from('store_discounts').select('*'),
+        supabase.from('store_shipping').select('*'),
       ])
       setInfo((pi.data as SInfo) ?? null)
       setProducts(((pp.data as SP[]) ?? []).map((p) => ({ ...p, price: Number(p.price), stock_qty: Number(p.stock_qty) })))
       setCats((pc.data as SC[]) ?? [])
       setDiscounts(((pd.data as SD[]) ?? []).map((d) => ({ ...d, value: Number(d.value) })))
+      setZones(((pz.data as SZ[]) ?? []).map((z) => ({ ...z, fee: Number(z.fee), sort_order: Number(z.sort_order) })).sort((a, b) => a.sort_order - b.sort_order))
       setLoading(false)
     })()
   }, [])
@@ -199,7 +203,7 @@ export default function Store() {
           <Checkout
             lines={cartLines.map((l) => ({ ...l, unit: priceOf(l.p) }))}
             add={(id) => add(id, 1, true)} dec={dec} remove={removeLine}
-            subtotal={subtotalDisc} discount={discountTotal} shipping={shipping} total={total}
+            subtotal={subtotalDisc} discount={discountTotal} zones={zones}
             info={info}
             onBack={() => setView('shop')}
             onPlaced={(no) => { setDoneNo(no); setCart({}); setView('done') }}
@@ -491,12 +495,12 @@ function Accordion({ title, children, defaultOpen = false }: { title: string; ch
 
 /* ───────────────────────── Checkout ───────────────────────── */
 
-function Checkout({ lines, add, dec, remove, subtotal, discount, shipping, total, info, onBack, onPlaced }: {
+function Checkout({ lines, add, dec, remove, subtotal, discount, zones, info, onBack, onPlaced }: {
   lines: { p: SP; qty: number; unit: number }[]
   add: (id: string) => void
   dec: (id: string) => void
   remove: (id: string) => void
-  subtotal: number; discount: number; shipping: number; total: number
+  subtotal: number; discount: number; zones: SZ[]
   info: SInfo | null
   onBack: () => void
   onPlaced: (orderNo: string) => void
@@ -504,6 +508,7 @@ function Checkout({ lines, add, dec, remove, subtotal, discount, shipping, total
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [address, setAddress] = useState('')
+  const [governorate, setGovernorate] = useState('')
   const [payment, setPayment] = useState<'cod' | 'instapay'>('cod')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
@@ -528,6 +533,12 @@ function Checkout({ lines, add, dec, remove, subtotal, discount, shipping, total
   const maxUsablePoints = canRedeemPoints ? Math.min(pointsBalance, Math.floor(goodsAfterCoupon / pointValue)) : 0
   const effPoints = redeemPointsOn ? maxUsablePoints : 0
   const pointsDiscount = +(effPoints * pointValue).toFixed(2)
+
+  // shipping by governorate; falls back to the flat store fee when the shop set no zones
+  const hasZones = zones.length > 0
+  const selectedZone = zones.find((z) => z.governorate === governorate)
+  const shipping = hasZones ? (selectedZone?.fee ?? 0) : (info?.shipping_fee ?? 0)
+  const shippingKnown = !hasZones || !!selectedZone
 
   const grandTotal = Math.max(0, +(subtotal - couponDiscount - pointsDiscount + shipping).toFixed(2))
 
@@ -582,6 +593,7 @@ function Checkout({ lines, add, dec, remove, subtotal, discount, shipping, total
 
   async function place() {
     if (!name.trim() || !phone.trim()) { setErr('اكتبي الاسم ورقم الموبايل'); return }
+    if (hasZones && !governorate) { setErr('اختاري المحافظة'); return }
     if (!address.trim()) { setErr('اكتبي عنوان التوصيل'); return }
     setBusy(true); setErr('')
     try {
@@ -590,7 +602,7 @@ function Checkout({ lines, add, dec, remove, subtotal, discount, shipping, total
       const { error: e1 } = await supabase.from('orders').insert({
         id: orderId, order_no: orderNo, customer_name: name.trim(), customer_phone: phone.trim(), address: address.trim(),
         status: 'new', payment, paid: false, subtotal, discount, shipping, total: grandTotal, note: note || null,
-        coupon_code: appliedCode, coupon_discount: couponDiscount, points_used: effPoints,
+        coupon_code: appliedCode, coupon_discount: couponDiscount, points_used: effPoints, governorate: governorate || null,
       })
       if (e1) throw e1
       const { error: e2 } = await supabase.from('order_items').insert(
@@ -645,7 +657,16 @@ function Checkout({ lines, add, dec, remove, subtotal, discount, shipping, total
               <label className="block"><span className="label">رقم الموبايل</span><input className="input" dir="ltr" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="01xxxxxxxxx" /></label>
               <label className="block"><span className="label">ملاحظة (اختياري)</span><input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="أي تفاصيل إضافية" /></label>
             </div>
-            <label className="block"><span className="label">عنوان التوصيل</span><textarea className="input min-h-[70px]" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="المحافظة، المدينة، الشارع، رقم العقار…" /></label>
+            {hasZones && (
+              <label className="block">
+                <span className="label">المحافظة (لتحديد الشحن)</span>
+                <select className="input" value={governorate} onChange={(e) => setGovernorate(e.target.value)}>
+                  <option value="">— اختاري المحافظة —</option>
+                  {zones.map((z) => <option key={z.governorate} value={z.governorate}>{z.governorate} — {z.fee > 0 ? egp(z.fee) : 'شحن مجاني'}</option>)}
+                </select>
+              </label>
+            )}
+            <label className="block"><span className="label">عنوان التوصيل</span><textarea className="input min-h-[70px]" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="المدينة، الشارع، رقم العقار…" /></label>
             <div>
               <span className="label">طريقة الدفع</span>
               <div className="grid grid-cols-2 gap-2">
@@ -701,7 +722,7 @@ function Checkout({ lines, add, dec, remove, subtotal, discount, shipping, total
               </div>
             )}
 
-            <Row label="الشحن" value={shipping > 0 ? egp(shipping) : 'مجاني'} />
+            <Row label="الشحن" value={!shippingKnown ? 'اختاري المحافظة' : shipping > 0 ? egp(shipping) : 'مجاني'} />
             <div className="border-t border-pink/40 pt-2.5 mt-1 flex justify-between text-lg"><span className="font-bold text-cocoa">الإجمالي</span><span className="font-extrabold text-rose">{egp(grandTotal)}</span></div>
             {err && <p className="text-danger text-sm font-semibold text-center bg-danger/10 rounded-xl py-2 mt-1">{err}</p>}
             <button onClick={place} disabled={busy} className="btn-primary w-full py-3.5 mt-1">{busy ? 'جاري الإرسال…' : 'تأكيد الطلب'}</button>

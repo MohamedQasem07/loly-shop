@@ -25,6 +25,7 @@ const NUMERIC_FIELDS: Record<string, string[]> = {
   order_items: ['qty', 'unit_price', 'line_total'],
   discounts: ['value'],
   coupons: ['value', 'min_order', 'max_discount', 'max_uses', 'used_count'],
+  shipping_zones: ['fee', 'sort_order'],
 }
 
 function coerce(table: string, row: Record<string, unknown>) {

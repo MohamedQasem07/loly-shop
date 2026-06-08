@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Plus, Store, Tags, Loader2, ShieldAlert, KeyRound, Globe, Copy, ExternalLink, Sparkles, Percent, Trash2, Ticket, Gift } from 'lucide-react'
+import { Plus, Store, Tags, Loader2, ShieldAlert, KeyRound, Globe, Copy, ExternalLink, Sparkles, Percent, Trash2, Ticket, Gift, Truck } from 'lucide-react'
 import { db } from '@/lib/db'
 import { supabase } from '@/lib/supabase'
 import { money, num } from '@/lib/format'
@@ -8,10 +8,12 @@ import { cn } from '@/lib/cn'
 import { uuid } from '@/lib/ids'
 import { Field, PageHeader } from '@/components/ui'
 import { ImageUpload } from '@/components/ImageUpload'
-import { saveSettings, saveCategory, save, removeRow, saveCoupon } from '@/data/repo'
+import { saveSettings, saveCategory, save, removeRow, saveCoupon, saveShippingZone } from '@/data/repo'
 import { useAuth } from '@/store/auth'
 import { toast } from '@/store/ui'
-import type { Category, Discount, Coupon, Settings as SettingsT } from '@/lib/types'
+import type { Category, Discount, Coupon, ShippingZone, Settings as SettingsT } from '@/lib/types'
+
+const EG_GOVERNORATES = ['القاهرة', 'الجيزة', 'الإسكندرية', 'القليوبية', 'الدقهلية', 'الشرقية', 'الغربية', 'المنوفية', 'البحيرة', 'كفر الشيخ', 'دمياط', 'بورسعيد', 'الإسماعيلية', 'السويس', 'شمال سيناء', 'جنوب سيناء', 'بني سويف', 'الفيوم', 'المنيا', 'أسيوط', 'سوهاج', 'قنا', 'الأقصر', 'أسوان', 'البحر الأحمر', 'الوادي الجديد', 'مطروح']
 
 export default function Settings() {
   const { isAdmin } = useAuth()
@@ -34,6 +36,7 @@ export default function Settings() {
       <DiscountsManager />
       <CouponsManager />
       <LoyaltyManager settings={settings} />
+      <ShippingZonesManager />
       <div className="grid lg:grid-cols-2 gap-5 items-start">
         <StoreSection settings={settings} />
         <CategoriesManager />
@@ -331,6 +334,66 @@ function CouponsManager() {
               </div>
               <button onClick={() => toggle(c)} className={cn('chip border', c.is_active ? 'bg-ok/10 text-ok border-ok/20' : 'bg-blush text-cocoa-light border-pink')}>{c.is_active ? 'فعّال' : 'موقوف'}</button>
               <button onClick={() => remove(c)} className="text-cocoa-light hover:text-danger" title="حذف"><Trash2 size={16} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ShippingZonesManager() {
+  const zones = (useLiveQuery(() => db.shipping_zones.toArray(), []) ?? []) as ShippingZone[]
+  const [adding, setAdding] = useState(false)
+  const [gov, setGov] = useState('')
+  const [fee, setFee] = useState(0)
+
+  async function add() {
+    const g = gov.trim()
+    if (!g) return toast('اختر المحافظة', 'error')
+    if (zones.some((z) => z.governorate.trim().toLowerCase() === g.toLowerCase())) return toast('المحافظة مضافة قبل كده', 'error')
+    await saveShippingZone({ governorate: g, fee: Number(fee) || 0, sort_order: zones.length + 1 })
+    toast('تمت إضافة المحافظة 🚚')
+    setGov(''); setFee(0); setAdding(false)
+  }
+  async function toggle(z: ShippingZone) { await saveShippingZone({ ...z, is_active: !z.is_active }) }
+  async function updateFee(z: ShippingZone, f: number) { if (f !== z.fee) await saveShippingZone({ ...z, fee: Number(f) || 0 }) }
+  async function remove(z: ShippingZone) { if (window.confirm('حذف المحافظة؟')) await removeRow('shipping_zones', z.id) }
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2 text-cocoa"><Truck size={18} className="text-rose" /><h2 className="font-bold">الشحن حسب المحافظة</h2></div>
+        <button onClick={() => setAdding((a) => !a)} className="btn-primary text-sm py-2"><Plus size={16} /> محافظة</button>
+      </div>
+      <p className="text-xs text-cocoa-light mb-4">حدّدي سعر شحن لكل محافظة. لو القائمة فاضية، بيتطبّق سعر الشحن الموحّد من «بيانات المحل».</p>
+
+      {adding && (
+        <div className="rounded-2xl bg-blush/40 p-4 mb-4">
+          <div className="grid sm:grid-cols-[1fr_10rem_auto] gap-3 items-end">
+            <Field label="المحافظة">
+              <input className="input" list="eg-govs" value={gov} onChange={(e) => setGov(e.target.value)} placeholder="اكتبي أو اختاري" />
+              <datalist id="eg-govs">{EG_GOVERNORATES.map((g) => <option key={g} value={g} />)}</datalist>
+            </Field>
+            <Field label="سعر الشحن (ج.م)"><input className="input" type="number" inputMode="decimal" value={fee || ''} onChange={(e) => setFee(+e.target.value || 0)} /></Field>
+            <button onClick={add} className="btn-primary">إضافة</button>
+          </div>
+        </div>
+      )}
+
+      {zones.length === 0 ? (
+        <p className="text-sm text-cocoa-light text-center py-4">مفيش محافظات لسه. ضيفي محافظات بأسعار شحنها وهتظهر للعميلة عند الطلب 🚚</p>
+      ) : (
+        <div className="space-y-2">
+          {zones.slice().sort((a, b) => a.sort_order - b.sort_order).map((z) => (
+            <div key={z.id} className="flex items-center gap-3 rounded-2xl border border-pink/40 p-3">
+              <span className="flex-1 font-bold text-cocoa">{z.governorate}</span>
+              <div className="flex items-center gap-1">
+                <input type="number" inputMode="decimal" defaultValue={z.fee} onBlur={(e) => updateFee(z, +e.target.value || 0)} className="input w-24 py-1.5 text-center" />
+                <span className="text-xs text-cocoa-light">ج.م</span>
+              </div>
+              <button onClick={() => toggle(z)} className={cn('chip border', z.is_active ? 'bg-ok/10 text-ok border-ok/20' : 'bg-blush text-cocoa-light border-pink')}>{z.is_active ? 'فعّال' : 'موقوف'}</button>
+              <button onClick={() => remove(z)} className="text-cocoa-light hover:text-danger" title="حذف"><Trash2 size={16} /></button>
             </div>
           ))}
         </div>
