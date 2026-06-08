@@ -10,7 +10,7 @@ import { cn } from '@/lib/cn'
 import { LOGO_URL } from '@/lib/assets'
 import { toast } from '@/store/ui'
 
-interface SP { id: string; name: string; category_id: string | null; image_url: string | null; color: string | null; price: number; stock_qty: number }
+interface SP { id: string; name: string; category_id: string | null; image_url: string | null; color: string | null; price: number; stock_qty: number; created_at?: string }
 interface SC { id: string; name: string; name_ar: string | null; sort_order: number }
 interface SD { id: string; type: string; value: number; scope: string; category_id: string | null; product_id: string | null }
 interface SZ { governorate: string; fee: number; sort_order: number }
@@ -62,6 +62,7 @@ export default function Store() {
   const [cats, setCats] = useState<SC[]>([])
   const [discounts, setDiscounts] = useState<SD[]>([])
   const [zones, setZones] = useState<SZ[]>([])
+  const [bestSellerIds, setBestSellerIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('all')
@@ -72,18 +73,20 @@ export default function Store() {
 
   useEffect(() => {
     ;(async () => {
-      const [pi, pp, pc, pd, pz] = await Promise.all([
+      const [pi, pp, pc, pd, pz, pb] = await Promise.all([
         supabase.from('store_info').select('*').maybeSingle(),
         supabase.from('store_products').select('*'),
         supabase.from('store_categories').select('*'),
         supabase.from('store_discounts').select('*'),
         supabase.from('store_shipping').select('*'),
+        supabase.rpc('store_bestsellers', { p_limit: 12 }),
       ])
       setInfo((pi.data as SInfo) ?? null)
       setProducts(((pp.data as SP[]) ?? []).map((p) => ({ ...p, price: Number(p.price), stock_qty: Number(p.stock_qty) })))
       setCats((pc.data as SC[]) ?? [])
       setDiscounts(((pd.data as SD[]) ?? []).map((d) => ({ ...d, value: Number(d.value) })))
       setZones(((pz.data as SZ[]) ?? []).map((z) => ({ ...z, fee: Number(z.fee), sort_order: Number(z.sort_order) })).sort((a, b) => a.sort_order - b.sort_order))
+      setBestSellerIds(((pb.data as { product_id: string }[]) ?? []).map((r) => r.product_id))
       setLoading(false)
     })()
   }, [])
@@ -117,6 +120,15 @@ export default function Store() {
   }, [products, q, cat, priceOf])
 
   const hasOffers = useMemo(() => products.some((p) => priceOf(p) < p.price), [products, priceOf])
+
+  const newArrivals = useMemo(
+    () => products.slice().sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? '')).slice(0, 10),
+    [products],
+  )
+  const bestSellers = useMemo(
+    () => bestSellerIds.map((id) => products.find((p) => p.id === id)).filter((p): p is SP => !!p),
+    [bestSellerIds, products],
+  )
 
   const cartLines = useMemo(
     () => Object.entries(cart).map(([id, qty]) => ({ p: products.find((x) => x.id === id)!, qty })).filter((l) => l.p),
@@ -184,6 +196,7 @@ export default function Store() {
         {view === 'shop' && (
           <Catalog
             info={info} products={list} allCount={products.length} cats={cats} hasOffers={hasOffers}
+            newArrivals={newArrivals} bestSellers={bestSellers}
             q={q} setQ={setQ} cat={cat} setCat={setCat}
             priceOf={priceOf} onOpen={openProduct} onAdd={(id) => add(id)} cart={cart}
           />
@@ -242,12 +255,14 @@ export default function Store() {
 
 /* ───────────────────────── Catalog ───────────────────────── */
 
-function Catalog({ info, products, allCount, cats, hasOffers, q, setQ, cat, setCat, priceOf, onOpen, onAdd, cart }: {
+function Catalog({ info, products, allCount, cats, hasOffers, newArrivals, bestSellers, q, setQ, cat, setCat, priceOf, onOpen, onAdd, cart }: {
   info: SInfo | null
   products: SP[]; allCount: number; cats: SC[]; hasOffers: boolean
+  newArrivals: SP[]; bestSellers: SP[]
   q: string; setQ: (v: string) => void; cat: string; setCat: (v: string) => void
   priceOf: (p: SP) => number; onOpen: (id: string) => void; onAdd: (id: string) => void; cart: Record<string, number>
 }) {
+  const showSections = cat === 'all' && !q.trim() && allCount >= 6
   return (
     <>
       {/* Hero */}
@@ -291,6 +306,14 @@ function Catalog({ info, products, allCount, cats, hasOffers, q, setQ, cat, setC
         ))}
       </div>
 
+      {showSections && (
+        <div className="space-y-6 mb-6">
+          {bestSellers.length >= 2 && <ProductRow title="الأكثر مبيعًا 🔥" items={bestSellers} priceOf={priceOf} onOpen={onOpen} onAdd={onAdd} cart={cart} />}
+          {newArrivals.length > 0 && <ProductRow title="وصل حديثًا 🆕" items={newArrivals} priceOf={priceOf} onOpen={onOpen} onAdd={onAdd} cart={cart} />}
+          <h3 className="font-display text-lg font-extrabold text-cocoa pt-1">كل المنتجات</h3>
+        </div>
+      )}
+
       {allCount === 0 || products.length === 0 ? (
         <div className="card"><div className="py-20 text-center text-cocoa-light"><ShoppingBag className="mx-auto mb-2 text-rose/50" size={44} /><p className="font-semibold">مفيش منتجات متاحة دلوقتي</p><p className="text-sm mt-1">تابعينا، هنضيف تشكيلة جديدة قريب 🌸</p></div></div>
       ) : (
@@ -328,6 +351,24 @@ function ProductCard({ p, unit, inCart, onOpen, onAdd }: { p: SP; unit: number; 
         {out ? 'غير متاح' : inCart ? `في السلة (${inCart})` : 'أضف للسلة'}
       </button>
     </div>
+  )
+}
+
+function ProductRow({ title, items, priceOf, onOpen, onAdd, cart }: {
+  title: string; items: SP[]
+  priceOf: (p: SP) => number; onOpen: (id: string) => void; onAdd: (id: string) => void; cart: Record<string, number>
+}) {
+  return (
+    <section>
+      <h3 className="font-display text-lg font-extrabold text-cocoa mb-3">{title}</h3>
+      <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x">
+        {items.map((p) => (
+          <div key={p.id} className="w-40 sm:w-44 shrink-0 snap-start">
+            <ProductCard p={p} unit={priceOf(p)} inCart={cart[p.id] ?? 0} onOpen={() => onOpen(p.id)} onAdd={() => onAdd(p.id)} />
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }
 
