@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Plus, Store, Tags, Loader2, ShieldAlert, KeyRound, Globe, Copy, ExternalLink, Sparkles, Percent, Trash2, Ticket } from 'lucide-react'
+import { Plus, Store, Tags, Loader2, ShieldAlert, KeyRound, Globe, Copy, ExternalLink, Sparkles, Percent, Trash2, Ticket, Gift } from 'lucide-react'
 import { db } from '@/lib/db'
 import { supabase } from '@/lib/supabase'
 import { money, num } from '@/lib/format'
@@ -33,6 +33,7 @@ export default function Settings() {
       <StoreIdentity settings={settings} />
       <DiscountsManager />
       <CouponsManager />
+      <LoyaltyManager settings={settings} />
       <div className="grid lg:grid-cols-2 gap-5 items-start">
         <StoreSection settings={settings} />
         <CategoriesManager />
@@ -334,6 +335,60 @@ function CouponsManager() {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+function LoyaltyManager({ settings }: { settings?: SettingsT }) {
+  const [enabled, setEnabled] = useState(false)
+  const [earn, setEarn] = useState(0)
+  const [pointValue, setPointValue] = useState(1)
+  const [minRedeem, setMinRedeem] = useState(0)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (settings) {
+      setEnabled(settings.loyalty_enabled ?? false)
+      setEarn(settings.loyalty_earn_egp ?? 0)
+      setPointValue(settings.loyalty_point_value ?? 1)
+      setMinRedeem(settings.loyalty_min_redeem ?? 0)
+    }
+  }, [settings])
+
+  async function submit() {
+    setBusy(true)
+    try {
+      await saveSettings({
+        loyalty_enabled: enabled,
+        loyalty_earn_egp: Number(earn) || 0,
+        loyalty_point_value: Number(pointValue) || 0,
+        loyalty_min_redeem: Math.floor(Number(minRedeem) || 0),
+      })
+      toast('تم حفظ إعدادات الولاء 🌸')
+    } catch { toast('حصل خطأ', 'error') } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-center gap-2 mb-1 text-cocoa"><Gift size={18} className="text-rose" /><h2 className="font-bold">نقاط الولاء</h2></div>
+      <p className="text-xs text-cocoa-light mb-4">كافئي عملاءك بنقاط على كل شراء، يستبدلوها خصم في الكاشير أو المتجر الأونلاين.</p>
+      <label className="flex items-center gap-3 rounded-2xl bg-blush/40 p-3 cursor-pointer mb-4">
+        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+        <div>
+          <p className="font-bold text-cocoa text-sm">تفعيل نظام النقاط</p>
+          <p className="text-xs text-cocoa-light">وهو مقفول مفيش نقاط بتتكسب أو تتستبدل</p>
+        </div>
+      </label>
+      {enabled && (
+        <div className="grid sm:grid-cols-3 gap-4">
+          <Field label="كل كام جنيه = نقطة"><input className="input" type="number" inputMode="decimal" value={earn || ''} onChange={(e) => setEarn(+e.target.value || 0)} placeholder="مثلاً ١٠" /></Field>
+          <Field label="قيمة النقطة (ج.م)"><input className="input" type="number" inputMode="decimal" value={pointValue || ''} onChange={(e) => setPointValue(+e.target.value || 0)} placeholder="مثلاً ١" /></Field>
+          <Field label="أقل نقاط للاستبدال"><input className="input" type="number" inputMode="numeric" value={minRedeem || ''} onChange={(e) => setMinRedeem(+e.target.value || 0)} placeholder="مثلاً ٥٠" /></Field>
+        </div>
+      )}
+      <div className="flex justify-end mt-4">
+        <button className="btn-primary" onClick={submit} disabled={busy}>{busy && <Loader2 size={18} className="animate-spin" />} حفظ</button>
+      </div>
     </div>
   )
 }

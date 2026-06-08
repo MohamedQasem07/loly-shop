@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
-  CheckCircle2, ImageOff, Minus, Plus, Printer, Receipt, RotateCcw, ScanLine, ShoppingCart, Trash2, Undo2, X,
+  CheckCircle2, Gift, ImageOff, Minus, Plus, Printer, Receipt, RotateCcw, ScanLine, ShoppingCart, Trash2, Undo2, X,
 } from 'lucide-react'
 import { db } from '@/lib/db'
 import { money, num, fmtDateTime } from '@/lib/format'
@@ -291,13 +291,30 @@ function CheckoutModal({
 }) {
   const cart = useCart()
   const methods = useLiveQuery(() => db.payment_methods.toArray(), []) ?? []
-  const total = cart.total()
   const [pays, setPays] = useState<Record<string, number>>({})
   const [custName, setCustName] = useState('')
   const [custPhone, setCustPhone] = useState('')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState<{ invoiceNo: string } | null>(null)
+  const [redeemPoints, setRedeemPoints] = useState(0)
+
+  // Loyalty: match an existing customer by phone and offer to redeem their points
+  const baseTotal = cart.total()
+  const phoneDigits = custPhone.replace(/\D/g, '')
+  const matchedCustomer = useLiveQuery(
+    async () => (phoneDigits.length >= 6 ? db.customers.filter((c) => (c.phone ?? '').replace(/\D/g, '') === phoneDigits).first() : undefined),
+    [phoneDigits],
+  )
+  const pointValue = settings?.loyalty_point_value ?? 1
+  const balance = matchedCustomer?.points ?? 0
+  const canRedeem = !!settings?.loyalty_enabled && pointValue > 0 && !!matchedCustomer && balance >= (settings?.loyalty_min_redeem ?? 0)
+  const maxUsable = canRedeem ? Math.min(balance, Math.floor(baseTotal / pointValue)) : 0
+  const effRedeem = Math.min(redeemPoints, maxUsable)
+  const pointsDiscount = +(effRedeem * pointValue).toFixed(2)
+  const total = +Math.max(0, baseTotal - pointsDiscount).toFixed(2)
+
+  useEffect(() => { setRedeemPoints(0) }, [matchedCustomer?.id])
 
   const paid = Object.values(pays).reduce((s, v) => s + (v || 0), 0)
   const remaining = +(total - paid).toFixed(2)
@@ -332,13 +349,14 @@ function CheckoutModal({
           discount: i.discount,
         })),
         payments,
-        invoiceDiscount: cart.invoiceDiscount,
+        invoiceDiscount: +(cart.invoiceDiscount + pointsDiscount).toFixed(2),
         taxPercent: settings?.tax_percent ?? 0,
-        customer_id: null,
+        customer_id: matchedCustomer?.id ?? null,
         customerName: custName || null,
         customerPhone: custPhone || null,
         cashier_id: cashierId,
         note: note || null,
+        redeemPoints: effRedeem,
       })
       setDone({ invoiceNo: sale.invoice_no })
       // keep data for printing
@@ -466,6 +484,23 @@ function CheckoutModal({
           <Field label="اسم العميل"><input className="input" value={custName} onChange={(e) => setCustName(e.target.value)} placeholder="اختياري" /></Field>
           <Field label="رقم الموبايل"><input className="input" dir="ltr" inputMode="tel" value={custPhone} onChange={(e) => setCustPhone(e.target.value)} placeholder="اختياري" /></Field>
         </div>
+
+        {canRedeem && (
+          <div className="rounded-2xl border border-gold/40 bg-gold/5 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="font-bold text-cocoa text-sm flex items-center gap-1.5"><Gift size={15} className="text-gold-dark" /> نقاط {matchedCustomer?.name}</p>
+                <p className="text-xs text-cocoa-light">الرصيد: {num(balance)} نقطة (= {money(balance * pointValue)})</p>
+              </div>
+              {effRedeem > 0 ? (
+                <button type="button" onClick={() => setRedeemPoints(0)} className="chip bg-danger/10 text-danger border border-danger/20">إلغاء</button>
+              ) : (
+                <button type="button" onClick={() => setRedeemPoints(maxUsable)} disabled={maxUsable <= 0} className="btn-primary text-xs py-1.5 px-3 disabled:opacity-50">استخدم ({money(maxUsable * pointValue)})</button>
+              )}
+            </div>
+            {effRedeem > 0 && <p className="text-xs text-ok font-bold mt-2">تم استخدام {num(effRedeem)} نقطة — خصم {money(pointsDiscount)}</p>}
+          </div>
+        )}
 
         <Field label="ملاحظة (اختياري)">
           <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="ملاحظة على الفاتورة" />

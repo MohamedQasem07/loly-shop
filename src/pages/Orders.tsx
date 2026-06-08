@@ -149,6 +149,7 @@ function OrderCard({ order, items, userId, storeName }: {
         الشحن: {order.shipping > 0 ? money(order.shipping) : 'مجاني'}
         {order.discount > 0 ? ` · خصم عروض: ${money(order.discount)}` : ''}
         {order.coupon_code ? ` · كوبون ${order.coupon_code}: ${money(order.coupon_discount)}` : ''}
+        {order.points_used > 0 ? ` · نقاط مستخدمة: ${num(order.points_used)}` : ''}
       </div>
 
       <OrderSteps status={order.status} />

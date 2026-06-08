@@ -144,6 +144,7 @@ export async function saveCustomer(input: Partial<Customer> & { name: string }):
     whatsapp: input.whatsapp ?? null,
     notes: input.notes ?? null,
     is_active: input.is_active ?? true,
+    points: existing?.points ?? input.points ?? 0,
     created_at: existing?.created_at ?? nowISO(),
   }
   return save('customers', row)
@@ -175,6 +176,7 @@ export interface CreateSaleInput {
   cashier_id?: string | null
   note?: string | null
   status?: 'completed' | 'held'
+  redeemPoints?: number
 }
 
 /** Find a customer by phone, or create one — so every invoice can carry name + phone. */
@@ -195,6 +197,7 @@ export async function createSale(input: CreateSaleInput) {
   const invoiceNo = await docNumber('INV')
   const created = nowISO()
   const customerId = input.customer_id ?? (await findOrCreateCustomer(input.customerName, input.customerPhone))
+  const settings = await db.settings.get(1)
 
   const lineRows = input.lines.map((l) => {
     const lineTotal = l.qty * l.unit_price - (l.discount ?? 0)
@@ -223,7 +226,7 @@ export async function createSale(input: CreateSaleInput) {
 
   await db.transaction(
     'rw',
-    [db.sales, db.sale_items, db.sale_payments, db.products, db.stock_movements, db.treasury_movements, db.outbox],
+    [db.sales, db.sale_items, db.sale_payments, db.products, db.stock_movements, db.treasury_movements, db.customers, db.outbox],
     async () => {
       await db.sales.put(sale)
       queued.push({ table: 'sales', id: sale.id, payload: sale })
@@ -261,6 +264,17 @@ export async function createSale(input: CreateSaleInput) {
           }
           await db.treasury_movements.put(tm)
           queued.push({ table: 'treasury_movements', id: tm.id, payload: tm })
+        }
+        // Loyalty: redeem requested points then earn on the net total (configurable, opt-in)
+        if (settings?.loyalty_enabled && customerId) {
+          const cust = await db.customers.get(customerId)
+          if (cust) {
+            const redeem = Math.min(Math.max(0, Math.floor(input.redeemPoints ?? 0)), cust.points ?? 0)
+            const earned = settings.loyalty_earn_egp > 0 ? Math.floor(total / settings.loyalty_earn_egp) : 0
+            const updatedCust = { ...cust, points: Math.max(0, (cust.points ?? 0) - redeem + earned) }
+            await db.customers.put(updatedCust)
+            queued.push({ table: 'customers', id: updatedCust.id, payload: updatedCust })
+          }
         }
       } else {
         // held sale: still store payment intents (optional). Keep simple: no payments yet.
@@ -622,6 +636,10 @@ export async function saveSettings(patch: Partial<Settings>): Promise<Settings> 
     store_facebook: patch.store_facebook ?? current?.store_facebook ?? null,
     store_tiktok: patch.store_tiktok ?? current?.store_tiktok ?? null,
     store_hours: patch.store_hours ?? current?.store_hours ?? null,
+    loyalty_enabled: patch.loyalty_enabled ?? current?.loyalty_enabled ?? false,
+    loyalty_earn_egp: patch.loyalty_earn_egp ?? current?.loyalty_earn_egp ?? 0,
+    loyalty_point_value: patch.loyalty_point_value ?? current?.loyalty_point_value ?? 1,
+    loyalty_min_redeem: patch.loyalty_min_redeem ?? current?.loyalty_min_redeem ?? 0,
     updated_at: nowISO(),
   }
   await db.settings.put(row)
@@ -685,14 +703,19 @@ export async function convertOrderToSale(orderId: string, cashierId?: string | n
     const p = it.product_id ? await db.products.get(it.product_id) : undefined
     lines.push({ product_id: it.product_id ?? '', product_name: it.product_name, qty: it.qty, unit_price: it.unit_price, unit_cost: p?.cost ?? 0 })
   }
-  // order_items already carry the discounted unit prices (product/category offers),
-  // so the only remaining order-level reduction is the coupon. goods = total − shipping.
+  // order_items already carry the discounted unit prices (product/category offers), so the
+  // remaining order-level reductions are the coupon + any redeemed points. goods = total − shipping.
+  const settings = await db.settings.get(1)
+  const pointsUsed = Math.max(0, Math.floor(order.points_used ?? 0))
+  const pointsDiscount = +(pointsUsed * (settings?.loyalty_point_value ?? 1)).toFixed(2)
   const goodsTotal = +(order.total - order.shipping).toFixed(2)
   const { sale } = await createSale({
     lines,
     payments: method ? [{ payment_method_id: method.id, amount: goodsTotal }] : [],
-    invoiceDiscount: order.coupon_discount ?? 0,
-    customer_id: null,
+    invoiceDiscount: +((order.coupon_discount ?? 0) + pointsDiscount).toFixed(2),
+    customerName: order.customer_name,
+    customerPhone: order.customer_phone,
+    redeemPoints: pointsUsed,
     cashier_id: cashierId ?? null,
     note: `أوردر أونلاين ${order.order_no} — ${order.customer_name}`,
   })

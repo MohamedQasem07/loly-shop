@@ -19,6 +19,7 @@ interface SInfo {
   store_instagram: string | null; store_facebook: string | null; store_tiktok: string | null
   store_hours: string | null; store_address: string | null
   currency: string; shipping_fee: number; store_open: boolean; receipt_footer: string | null
+  loyalty_enabled?: boolean; loyalty_point_value?: number; loyalty_min_redeem?: number
 }
 
 const egp = (n: number) => `${(n || 0).toLocaleString('ar-EG', { maximumFractionDigits: 2 })} ج.م`
@@ -515,7 +516,20 @@ function Checkout({ lines, add, dec, remove, subtotal, discount, shipping, total
   const [couponMsg, setCouponMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [couponBusy, setCouponBusy] = useState(false)
 
-  const grandTotal = Math.max(0, +(subtotal - couponDiscount + shipping).toFixed(2))
+  // loyalty points (balance looked up by phone; redeemed value realized when the shop confirms the order)
+  const loyaltyOn = !!info?.loyalty_enabled && (info?.loyalty_point_value ?? 0) > 0
+  const pointValue = info?.loyalty_point_value ?? 1
+  const minRedeem = info?.loyalty_min_redeem ?? 0
+  const [pointsBalance, setPointsBalance] = useState(0)
+  const [redeemPointsOn, setRedeemPointsOn] = useState(false)
+
+  const goodsAfterCoupon = Math.max(0, +(subtotal - couponDiscount).toFixed(2))
+  const canRedeemPoints = loyaltyOn && pointsBalance > 0 && pointsBalance >= minRedeem
+  const maxUsablePoints = canRedeemPoints ? Math.min(pointsBalance, Math.floor(goodsAfterCoupon / pointValue)) : 0
+  const effPoints = redeemPointsOn ? maxUsablePoints : 0
+  const pointsDiscount = +(effPoints * pointValue).toFixed(2)
+
+  const grandTotal = Math.max(0, +(subtotal - couponDiscount - pointsDiscount + shipping).toFixed(2))
 
   // (re)validate the applied coupon server-side whenever it changes or the cart total shifts
   useEffect(() => {
@@ -542,6 +556,19 @@ function Checkout({ lines, add, dec, remove, subtotal, discount, shipping, total
   }
   function removeCoupon() { setAppliedCode(null); setCoupon(''); setCouponDiscount(0); setCouponMsg(null) }
 
+  // look up the customer's points balance once a full phone number is entered
+  useEffect(() => {
+    if (!loyaltyOn) { setPointsBalance(0); return }
+    const digits = phone.replace(/\D/g, '')
+    if (digits.length < 10) { setPointsBalance(0); setRedeemPointsOn(false); return }
+    let cancelled = false
+    ;(async () => {
+      const { data, error } = await supabase.rpc('customer_points', { p_phone: digits })
+      if (!cancelled) setPointsBalance(error ? 0 : Number(data) || 0)
+    })()
+    return () => { cancelled = true }
+  }, [phone, loyaltyOn])
+
   if (lines.length === 0) {
     return (
       <div className="card p-12 text-center mt-6 max-w-lg mx-auto">
@@ -563,7 +590,7 @@ function Checkout({ lines, add, dec, remove, subtotal, discount, shipping, total
       const { error: e1 } = await supabase.from('orders').insert({
         id: orderId, order_no: orderNo, customer_name: name.trim(), customer_phone: phone.trim(), address: address.trim(),
         status: 'new', payment, paid: false, subtotal, discount, shipping, total: grandTotal, note: note || null,
-        coupon_code: appliedCode, coupon_discount: couponDiscount,
+        coupon_code: appliedCode, coupon_discount: couponDiscount, points_used: effPoints,
       })
       if (e1) throw e1
       const { error: e2 } = await supabase.from('order_items').insert(
@@ -659,6 +686,20 @@ function Checkout({ lines, add, dec, remove, subtotal, discount, shipping, total
               )}
               {couponMsg && <p className={cn('text-[11px] mt-1.5 font-semibold', couponMsg.ok ? 'text-ok' : 'text-danger')}>{couponMsg.text}</p>}
             </div>
+
+            {/* Loyalty points */}
+            {canRedeemPoints && (
+              <div className="rounded-xl border border-gold/40 bg-gold/5 p-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-cocoa flex items-center gap-1.5"><Sparkles size={13} className="text-gold-dark" /> نقاطك: {pointsBalance} <span className="text-cocoa-light font-normal">(= {egp(pointsBalance * pointValue)})</span></span>
+                  <label className={cn('flex items-center gap-1.5 text-xs font-bold cursor-pointer', maxUsablePoints <= 0 ? 'text-cocoa-light' : 'text-cocoa')}>
+                    <input type="checkbox" checked={redeemPointsOn} onChange={(e) => setRedeemPointsOn(e.target.checked)} disabled={maxUsablePoints <= 0} />
+                    استخدميها
+                  </label>
+                </div>
+                {effPoints > 0 && <p className="text-[11px] text-ok font-bold mt-1">خصم {egp(pointsDiscount)} ({effPoints} نقطة)</p>}
+              </div>
+            )}
 
             <Row label="الشحن" value={shipping > 0 ? egp(shipping) : 'مجاني'} />
             <div className="border-t border-pink/40 pt-2.5 mt-1 flex justify-between text-lg"><span className="font-bold text-cocoa">الإجمالي</span><span className="font-extrabold text-rose">{egp(grandTotal)}</span></div>

@@ -46,6 +46,7 @@ export interface Customer {
   whatsapp: string | null
   notes: string | null
   is_active: boolean
+  points: number
   created_at: string
 }
 
@@ -280,6 +281,10 @@ export interface Settings {
   store_facebook: string | null
   store_tiktok: string | null
   store_hours: string | null
+  loyalty_enabled: boolean
+  loyalty_earn_egp: number
+  loyalty_point_value: number
+  loyalty_min_redeem: number
   updated_at: string
 }
 
@@ -303,6 +308,7 @@ export interface Order {
   sale_id: string | null
   coupon_code: string | null
   coupon_discount: number
+  points_used: number
   created_at: string
 }
 

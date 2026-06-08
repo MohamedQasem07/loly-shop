@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { MessageCircle, Pencil, Phone, Plus, Search, Star, Users } from 'lucide-react'
+import { Gift, MessageCircle, Pencil, Phone, Plus, Search, Star, Users } from 'lucide-react'
 import { db } from '@/lib/db'
 import { money, num, fmtDate } from '@/lib/format'
 import { Empty, Field, Modal, PageHeader } from '@/components/ui'
@@ -85,12 +85,12 @@ export default function Customers() {
       )}
 
       {(adding || editing) && <CustomerModal customer={editing} onClose={() => { setAdding(false); setEditing(null) }} />}
-      {viewing && <CustomerDetail customer={viewing} storeName={storeName} onClose={() => setViewing(null)} onEdit={() => { setEditing(viewing); setViewing(null) }} />}
+      {viewing && <CustomerDetail customer={viewing} storeName={storeName} loyaltyOn={!!settings?.loyalty_enabled} pointValue={settings?.loyalty_point_value ?? 1} onClose={() => setViewing(null)} onEdit={() => { setEditing(viewing); setViewing(null) }} />}
     </div>
   )
 }
 
-function CustomerDetail({ customer, storeName, onClose, onEdit }: { customer: Customer; storeName: string; onClose: () => void; onEdit: () => void }) {
+function CustomerDetail({ customer, storeName, loyaltyOn, pointValue, onClose, onEdit }: { customer: Customer; storeName: string; loyaltyOn: boolean; pointValue: number; onClose: () => void; onEdit: () => void }) {
   const allSales = useLiveQuery(() => db.sales.toArray(), []) ?? []
   const allOrders = useLiveQuery(() => db.orders.toArray(), []) ?? []
   const sales = allSales
@@ -111,6 +111,7 @@ function CustomerDetail({ customer, storeName, onClose, onEdit }: { customer: Cu
         <div className="flex flex-wrap items-center gap-2">
           {customer.phone && <a href={`tel:${customer.phone}`} className="chip bg-blush text-cocoa" dir="ltr"><Phone size={13} /> {customer.phone}</a>}
           {waHref && <a href={waHref} target="_blank" rel="noreferrer" className="chip bg-ok/15 text-ok"><MessageCircle size={14} /> محادثة واتساب</a>}
+          {loyaltyOn && <span className="chip bg-gold/15 text-gold-dark"><Gift size={13} /> {num(customer.points)} نقطة{customer.points > 0 ? ` (= ${money(customer.points * pointValue)})` : ''}</span>}
           <button onClick={onEdit} className="chip bg-blush text-cocoa-light"><Pencil size={13} /> تعديل البيانات</button>
         </div>
 
