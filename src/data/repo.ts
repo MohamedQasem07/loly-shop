@@ -616,6 +616,12 @@ export async function saveSettings(patch: Partial<Settings>): Promise<Settings> 
     store_open: patch.store_open ?? current?.store_open ?? true,
     shipping_fee: patch.shipping_fee ?? current?.shipping_fee ?? 0,
     store_whatsapp: patch.store_whatsapp ?? current?.store_whatsapp ?? null,
+    store_cover_url: patch.store_cover_url ?? current?.store_cover_url ?? null,
+    store_about: patch.store_about ?? current?.store_about ?? null,
+    store_instagram: patch.store_instagram ?? current?.store_instagram ?? null,
+    store_facebook: patch.store_facebook ?? current?.store_facebook ?? null,
+    store_tiktok: patch.store_tiktok ?? current?.store_tiktok ?? null,
+    store_hours: patch.store_hours ?? current?.store_hours ?? null,
     updated_at: nowISO(),
   }
   await db.settings.put(row)

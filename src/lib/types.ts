@@ -274,6 +274,12 @@ export interface Settings {
   store_open: boolean
   shipping_fee: number
   store_whatsapp: string | null
+  store_cover_url: string | null
+  store_about: string | null
+  store_instagram: string | null
+  store_facebook: string | null
+  store_tiktok: string | null
+  store_hours: string | null
   updated_at: string
 }
 

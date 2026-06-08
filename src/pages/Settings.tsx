@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Plus, Store, Tags, Loader2, ShieldAlert, KeyRound, Globe, Copy, ExternalLink } from 'lucide-react'
+import { Plus, Store, Tags, Loader2, ShieldAlert, KeyRound, Globe, Copy, ExternalLink, Sparkles } from 'lucide-react'
 import { db } from '@/lib/db'
 import { supabase } from '@/lib/supabase'
 import { Field, PageHeader } from '@/components/ui'
+import { ImageUpload } from '@/components/ImageUpload'
 import { saveSettings, saveCategory, save } from '@/data/repo'
 import { useAuth } from '@/store/auth'
 import { toast } from '@/store/ui'
@@ -26,6 +27,7 @@ export default function Settings() {
     <div className="space-y-5">
       <PageHeader title="الإعدادات" subtitle="بيانات المحل والنظام" />
       <StoreForm settings={settings} />
+      <StoreIdentity settings={settings} />
       <div className="grid lg:grid-cols-2 gap-5 items-start">
         <StoreSection settings={settings} />
         <CategoriesManager />
@@ -160,6 +162,71 @@ function StoreForm({ settings }: { settings?: SettingsT }) {
         <button className="btn-primary" onClick={submit} disabled={busy}>
           {busy && <Loader2 size={18} className="animate-spin" />} حفظ
         </button>
+      </div>
+    </div>
+  )
+}
+
+function StoreIdentity({ settings }: { settings?: SettingsT }) {
+  const [cover, setCover] = useState('')
+  const [about, setAbout] = useState('')
+  const [instagram, setInstagram] = useState('')
+  const [facebook, setFacebook] = useState('')
+  const [tiktok, setTiktok] = useState('')
+  const [hours, setHours] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (settings) {
+      setCover(settings.store_cover_url ?? '')
+      setAbout(settings.store_about ?? '')
+      setInstagram(settings.store_instagram ?? '')
+      setFacebook(settings.store_facebook ?? '')
+      setTiktok(settings.store_tiktok ?? '')
+      setHours(settings.store_hours ?? '')
+    }
+  }, [settings])
+
+  async function submit() {
+    setBusy(true)
+    try {
+      await saveSettings({
+        store_cover_url: cover || null, store_about: about || null,
+        store_instagram: instagram || null, store_facebook: facebook || null,
+        store_tiktok: tiktok || null, store_hours: hours || null,
+      })
+      toast('تم حفظ هوية المتجر 🌸')
+    } catch {
+      toast('حصل خطأ', 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-center gap-2 mb-4 text-cocoa">
+        <Sparkles size={18} className="text-rose" />
+        <h2 className="font-bold">هوية المتجر</h2>
+        <span className="text-xs text-cocoa-light">— بتظهر للعملاء في المتجر الأونلاين</span>
+      </div>
+      <div className="space-y-4">
+        <div>
+          <span className="label">صورة الغلاف (بانر المتجر)</span>
+          <ImageUpload value={cover} onChange={setCover} folder="store" wide hint="صورة عريضة تظهر أعلى المتجر · حتى ٥ ميجا" />
+        </div>
+        <Field label="نبذة عن المتجر">
+          <textarea className="input min-h-[70px]" value={about} onChange={(e) => setAbout(e.target.value)} placeholder="مثلاً: إكسسوارات حريمي مختارة بعناية — شحن لكل مصر 🌸" />
+        </Field>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <Field label="إنستجرام"><input className="input" dir="ltr" value={instagram} onChange={(e) => setInstagram(e.target.value)} placeholder="https://instagram.com/yourstore" /></Field>
+          <Field label="فيسبوك"><input className="input" dir="ltr" value={facebook} onChange={(e) => setFacebook(e.target.value)} placeholder="https://facebook.com/yourstore" /></Field>
+          <Field label="تيك توك"><input className="input" dir="ltr" value={tiktok} onChange={(e) => setTiktok(e.target.value)} placeholder="https://tiktok.com/@yourstore" /></Field>
+          <Field label="مواعيد العمل"><input className="input" value={hours} onChange={(e) => setHours(e.target.value)} placeholder="السبت–الخميس · ١٢ظ – ١٠م" /></Field>
+        </div>
+      </div>
+      <div className="flex justify-end mt-4">
+        <button className="btn-primary" onClick={submit} disabled={busy}>{busy && <Loader2 size={18} className="animate-spin" />} حفظ</button>
       </div>
     </div>
   )

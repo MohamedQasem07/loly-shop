@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  ArrowRight, Banknote, CheckCircle2, ChevronDown, ImageOff, Lock, Minus, Plus,
+  ArrowRight, Banknote, CheckCircle2, ChevronDown, Clock, ImageOff, Lock, MapPin, Minus, Plus,
   RefreshCcw, Search, Share2, ShieldCheck, ShoppingBag, ShoppingCart, Smartphone,
-  Sparkles, Truck, MessageCircle, Tag,
+  Sparkles, Truck, MessageCircle, Phone, Tag,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { uuid } from '@/lib/ids'
@@ -13,7 +13,13 @@ import { toast } from '@/store/ui'
 interface SP { id: string; name: string; category_id: string | null; image_url: string | null; color: string | null; price: number; stock_qty: number }
 interface SC { id: string; name: string; name_ar: string | null; sort_order: number }
 interface SD { id: string; type: string; value: number; scope: string; category_id: string | null; product_id: string | null }
-interface SInfo { store_name: string; logo_url: string | null; store_phone: string | null; store_whatsapp: string | null; currency: string; shipping_fee: number; store_open: boolean; receipt_footer: string | null }
+interface SInfo {
+  store_name: string; logo_url: string | null; store_cover_url: string | null; store_about: string | null
+  store_phone: string | null; store_whatsapp: string | null
+  store_instagram: string | null; store_facebook: string | null; store_tiktok: string | null
+  store_hours: string | null; store_address: string | null
+  currency: string; shipping_fee: number; store_open: boolean; receipt_footer: string | null
+}
 
 const egp = (n: number) => `${(n || 0).toLocaleString('ar-EG', { maximumFractionDigits: 2 })} ج.م`
 
@@ -180,6 +186,8 @@ export default function Store() {
         )}
       </main>
 
+      <StoreFooter info={info} />
+
       {/* Floating cart (mobile) */}
       {(view === 'shop' || view === 'product') && count > 0 && (
         <button onClick={() => setView('checkout')} className="sm:hidden fixed bottom-4 inset-x-4 z-40 btn-primary py-3.5 justify-between shadow-lift">
@@ -202,13 +210,23 @@ function Catalog({ info, products, allCount, cats, q, setQ, cat, setCat, priceOf
   return (
     <>
       {/* Hero */}
-      <section className="relative overflow-hidden rounded-3xl bg-rose-grad text-white p-6 sm:p-9 mb-5 shadow-soft">
-        <div className="absolute -top-10 -left-10 w-44 h-44 rounded-full bg-white/10 blur-2xl" />
-        <div className="absolute -bottom-12 right-10 w-52 h-52 rounded-full bg-white/10 blur-2xl" />
+      <section className="relative overflow-hidden rounded-3xl text-white p-6 sm:p-9 mb-5 shadow-soft">
+        {info?.store_cover_url ? (
+          <>
+            <img src={info.store_cover_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-l from-rose-dark/90 via-rose-dark/70 to-rose/55" />
+          </>
+        ) : (
+          <>
+            <div className="absolute inset-0 bg-rose-grad" />
+            <div className="absolute -top-10 -left-10 w-44 h-44 rounded-full bg-white/10 blur-2xl" />
+            <div className="absolute -bottom-12 right-10 w-52 h-52 rounded-full bg-white/10 blur-2xl" />
+          </>
+        )}
         <div className="relative max-w-xl">
           <span className="inline-flex items-center gap-1.5 bg-white/15 rounded-full px-3 py-1 text-xs font-bold"><Sparkles size={14} /> {info?.store_name ?? 'Loly Store'}</span>
-          <h2 className="font-display text-2xl sm:text-4xl font-extrabold mt-3 leading-tight">إكسسوارات تكمّل أناقتك ✨</h2>
-          <p className="opacity-90 mt-2 text-sm sm:text-base">تشكيلة مختارة من أحلى الإكسسوارات — اطلبي أونلاين والدفع عند الاستلام.</p>
+          <h2 className="font-display text-2xl sm:text-4xl font-extrabold mt-3 leading-tight drop-shadow">{info?.store_about ? info.store_name : 'إكسسوارات تكمّل أناقتك ✨'}</h2>
+          <p className="opacity-95 mt-2 text-sm sm:text-base drop-shadow">{info?.store_about ?? 'تشكيلة مختارة من أحلى الإكسسوارات — اطلبي أونلاين والدفع عند الاستلام.'}</p>
           <div className="flex flex-wrap gap-2 mt-4">
             <HeroPill icon={Truck} text="شحن لكل المحافظات" />
             <HeroPill icon={Banknote} text="الدفع عند الاستلام" />
@@ -547,6 +565,64 @@ function Checkout({ lines, add, dec, remove, subtotal, discount, shipping, total
 }
 
 /* ───────────────────────── small UI bits ───────────────────────── */
+
+function StoreFooter({ info }: { info: SInfo | null }) {
+  if (!info) return null
+  const wa = info.store_whatsapp ? `https://wa.me/${info.store_whatsapp.replace(/\D/g, '')}` : null
+  const socials = [
+    info.store_instagram && { href: info.store_instagram, label: 'إنستجرام', Icon: IgIcon, color: 'bg-gradient-to-br from-[#feda75] via-[#d62976] to-[#4f5bd5]' },
+    info.store_facebook && { href: info.store_facebook, label: 'فيسبوك', Icon: FbIcon, color: 'bg-[#1877F2]' },
+    info.store_tiktok && { href: info.store_tiktok, label: 'تيك توك', Icon: TtIcon, color: 'bg-cocoa' },
+  ].filter(Boolean) as { href: string; label: string; Icon: () => JSX.Element; color: string }[]
+
+  return (
+    <footer className="border-t border-pink/40 bg-white mt-10">
+      <div className="max-w-6xl mx-auto px-4 py-9 grid sm:grid-cols-3 gap-7 text-sm">
+        <div>
+          <div className="flex items-center gap-2 mb-2.5">
+            <img src={info.logo_url || LOGO_URL} className="w-10 h-10 rounded-xl object-cover" />
+            <span className="font-display font-extrabold text-rose text-lg">{info.store_name}</span>
+          </div>
+          {info.store_about && <p className="text-cocoa-light leading-relaxed">{info.store_about}</p>}
+        </div>
+        <div>
+          <h4 className="font-bold text-cocoa mb-2.5">تواصلي معنا</h4>
+          <ul className="space-y-2 text-cocoa-light">
+            {wa && <li><a href={wa} target="_blank" rel="noreferrer" className="hover:text-rose inline-flex items-center gap-2"><MessageCircle size={15} /> واتساب</a></li>}
+            {info.store_phone && <li className="inline-flex items-center gap-2" dir="ltr"><Phone size={15} /> {info.store_phone}</li>}
+            {info.store_hours && <li className="inline-flex items-center gap-2"><Clock size={15} /> {info.store_hours}</li>}
+            {info.store_address && <li className="inline-flex items-center gap-2"><MapPin size={15} /> {info.store_address}</li>}
+          </ul>
+        </div>
+        <div>
+          <h4 className="font-bold text-cocoa mb-2.5">تابعينا</h4>
+          {socials.length > 0 ? (
+            <div className="flex gap-2.5">
+              {socials.map((s) => (
+                <a key={s.label} href={s.href} target="_blank" rel="noreferrer" title={s.label} className={cn('w-10 h-10 rounded-full grid place-items-center text-white shadow-soft hover:-translate-y-0.5 transition', s.color)}>
+                  <s.Icon />
+                </a>
+              ))}
+            </div>
+          ) : (
+            <p className="text-cocoa-light">تابعينا قريباً 🌸</p>
+          )}
+        </div>
+      </div>
+      <div className="text-center text-[11px] text-cocoa-light pb-6">© {info.store_name} — كل الحقوق محفوظة</div>
+    </footer>
+  )
+}
+
+function IgIcon() {
+  return (<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2.2c3.2 0 3.58.01 4.85.07 1.17.05 1.8.25 2.23.41.56.22.96.48 1.38.9.42.42.68.82.9 1.38.16.42.36 1.06.41 2.23.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.05 1.17-.25 1.8-.41 2.23-.22.56-.48.96-.9 1.38-.42.42-.82.68-1.38.9-.42.16-1.06.36-2.23.41-1.27.06-1.65.07-4.85.07s-3.58-.01-4.85-.07c-1.17-.05-1.8-.25-2.23-.41a3.7 3.7 0 01-1.38-.9 3.7 3.7 0 01-.9-1.38c-.16-.42-.36-1.06-.41-2.23C2.21 15.58 2.2 15.2 2.2 12s.01-3.58.07-4.85c.05-1.17.25-1.8.41-2.23.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.42-.16 1.06-.36 2.23-.41C8.42 2.21 8.8 2.2 12 2.2zm0 1.8c-3.15 0-3.5.01-4.74.07-.9.04-1.39.19-1.71.32-.43.17-.74.37-1.06.69-.32.32-.52.63-.69 1.06-.13.32-.28.81-.32 1.71-.06 1.24-.07 1.59-.07 4.74s.01 3.5.07 4.74c.04.9.19 1.39.32 1.71.17.43.37.74.69 1.06.32.32.63.52 1.06.69.32.13.81.28 1.71.32 1.24.06 1.59.07 4.74.07s3.5-.01 4.74-.07c.9-.04 1.39-.19 1.71-.32.43-.17.74-.37 1.06-.69.32-.32.52-.63.69-1.06.13-.32.28-.81.32-1.71.06-1.24.07-1.59.07-4.74s-.01-3.5-.07-4.74c-.04-.9-.19-1.39-.32-1.71a2.86 2.86 0 00-.69-1.06 2.86 2.86 0 00-1.06-.69c-.32-.13-.81-.28-1.71-.32C15.5 4.01 15.15 4 12 4zm0 3.06A4.94 4.94 0 1012 16.94 4.94 4.94 0 0012 7.06zm0 1.8a3.14 3.14 0 110 6.28 3.14 3.14 0 010-6.28zm5.13-.93a1.15 1.15 0 11-2.3 0 1.15 1.15 0 012.3 0z"/></svg>)
+}
+function FbIcon() {
+  return (<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M22 12a10 10 0 10-11.56 9.88v-6.99H7.9V12h2.54V9.8c0-2.5 1.49-3.89 3.78-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99A10 10 0 0022 12z"/></svg>)
+}
+function TtIcon() {
+  return (<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16.6 5.82a4.28 4.28 0 01-1.06-2.82h-3.2v12.85a2.59 2.59 0 01-2.59 2.5 2.59 2.59 0 01-2.59-2.59 2.59 2.59 0 013.37-2.47v-3.3a5.9 5.9 0 00-.78-.05A5.89 5.89 0 003.46 16a5.89 5.89 0 0010.06 4.16 5.86 5.86 0 001.72-4.16V9.43a7.55 7.55 0 004.42 1.42V7.6a4.28 4.28 0 01-3.06-1.78z"/></svg>)
+}
 
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return <button onClick={onClick} className={cn('shrink-0 rounded-full px-4 py-1.5 text-sm font-bold border transition', active ? 'bg-rose text-white border-rose shadow-soft' : 'bg-white text-cocoa-light border-pink hover:border-rose/40')}>{children}</button>
