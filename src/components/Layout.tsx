@@ -67,7 +67,7 @@ export function Layout() {
       {/* Main column */}
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar />
-        <main className="flex-1 p-4 sm:p-6 pb-28 lg:pb-6 max-w-6xl w-full mx-auto">
+        <main className="flex-1 p-4 sm:p-6 lg:px-8 pb-28 lg:pb-8 max-w-[1760px] w-full mx-auto">
           <Outlet />
         </main>
       </div>

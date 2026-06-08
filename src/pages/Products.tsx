@@ -1,7 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Package, Pencil, Plus, Search, ImageOff, Store } from 'lucide-react'
+import { Package, Pencil, Plus, Search, ImageOff, Store, Upload, Loader2, Trash2 } from 'lucide-react'
 import { db } from '@/lib/db'
+import { supabase } from '@/lib/supabase'
+import { uuid } from '@/lib/ids'
 import { money, num } from '@/lib/format'
 import { Empty, Field, Modal, PageHeader } from '@/components/ui'
 import { saveProduct, save, type ProductInput } from '@/data/repo'
@@ -96,7 +98,7 @@ export default function Products() {
           />
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {filtered.map((p) => {
             const low = p.low_stock_threshold > 0 && p.stock_qty <= p.low_stock_threshold
             return (
@@ -152,6 +154,57 @@ function Thumb({ url }: { url: string | null }) {
     )
   }
   return <img src={url} alt="" className="w-16 h-16 rounded-2xl object-cover bg-blush shrink-0" />
+}
+
+function ImageUpload({ value, onChange }: { value: string; onChange: (url: string) => void }) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const [err, setErr] = useState('')
+
+  async function onFile(file: File) {
+    if (file.size > 5 * 1024 * 1024) { setErr('الصورة كبيرة (أقصى حجم ٥ ميجا)'); return }
+    setErr('')
+    setUploading(true)
+    try {
+      const ext = ((file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')) || 'jpg'
+      const path = `products/${uuid()}.${ext}`
+      const { error } = await supabase.storage.from('product-images').upload(path, file, {
+        cacheControl: '3600', upsert: false, contentType: file.type || undefined,
+      })
+      if (error) throw error
+      const { data } = supabase.storage.from('product-images').getPublicUrl(path)
+      onChange(data.publicUrl)
+    } catch {
+      setErr('تعذّر رفع الصورة — تأكد إنك متصل بالنت وحاول تاني')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <div className="flex items-start gap-3">
+      <div className="w-24 h-24 rounded-2xl bg-blush grid place-items-center overflow-hidden shrink-0 border border-pink/60">
+        {value ? <img src={value} alt="" className="w-full h-full object-cover" /> : <ImageOff className="text-rose/40" size={28} />}
+      </div>
+      <div className="flex-1 min-w-0 space-y-2">
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className="btn-ghost text-sm py-2">
+            {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+            {value ? 'تغيير الصورة' : 'رفع صورة'}
+          </button>
+          {value && !uploading && (
+            <button type="button" onClick={() => onChange('')} className="btn-ghost text-sm py-2 text-danger border-danger/30">
+              <Trash2 size={15} /> إزالة
+            </button>
+          )}
+        </div>
+        <input className="input text-sm" dir="ltr" placeholder="أو الصق رابط صورة…" value={value} onChange={(e) => onChange(e.target.value)} />
+        {err && <p className="text-danger text-xs font-semibold">{err}</p>}
+        <p className="text-[11px] text-cocoa-light">JPG / PNG / WebP · حتى ٥ ميجا · بتظهر في المتجر الأونلاين</p>
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = '' }} />
+      </div>
+    </div>
+  )
 }
 
 function ProductModal({ product, onClose }: { product: Product | null; onClose: () => void }) {
@@ -265,9 +318,8 @@ function ProductModal({ product, onClose }: { product: Product | null; onClose: 
           </select>
         </Field>
         <div className="sm:col-span-2">
-          <Field label="رابط صورة (اختياري)">
-            <input className="input" dir="ltr" value={form.image_url ?? ''} onChange={(e) => set({ image_url: e.target.value })} placeholder="https://…" />
-          </Field>
+          <span className="label">صورة المنتج</span>
+          <ImageUpload value={form.image_url ?? ''} onChange={(url) => set({ image_url: url })} />
         </div>
         <div className="sm:col-span-2">
           <Field label="ملاحظات">

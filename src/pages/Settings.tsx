@@ -26,9 +26,11 @@ export default function Settings() {
     <div className="space-y-5">
       <PageHeader title="الإعدادات" subtitle="بيانات المحل والنظام" />
       <StoreForm settings={settings} />
-      <StoreSection settings={settings} />
-      <CategoriesManager />
-      <AccountSection />
+      <div className="grid lg:grid-cols-2 gap-5 items-start">
+        <StoreSection settings={settings} />
+        <CategoriesManager />
+        <AccountSection />
+      </div>
     </div>
   )
 }

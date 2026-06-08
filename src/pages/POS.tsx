@@ -106,7 +106,7 @@ export default function POS() {
             <Empty icon={<ShoppingCart size={40} />} title="مفيش منتجات" hint="أضف منتجات من صفحة المنتجات" />
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 pb-24 lg:pb-0">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 pb-24 lg:pb-0">
             {list.map((p) => {
               const out = !allowNegative && p.stock_qty <= 0
               return (

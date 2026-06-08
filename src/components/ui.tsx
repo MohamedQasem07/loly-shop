@@ -28,7 +28,7 @@ export function Modal({
       <div
         className={cn(
           'relative card w-full max-h-[92vh] overflow-auto rounded-b-none sm:rounded-3xl sm:m-4',
-          wide ? 'sm:max-w-3xl' : 'sm:max-w-md',
+          wide ? 'sm:max-w-4xl' : 'sm:max-w-lg',
         )}
       >
         {title && (
