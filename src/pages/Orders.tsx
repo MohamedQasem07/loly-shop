@@ -8,7 +8,7 @@ import { convertOrderToSale, updateOrderStatus } from '@/data/repo'
 import { useAuth } from '@/store/auth'
 import { toast } from '@/store/ui'
 import { cn } from '@/lib/cn'
-import type { Order, OrderStatus } from '@/lib/types'
+import type { Order, OrderStatus, Settings } from '@/lib/types'
 
 const STATUS: Record<OrderStatus, { label: string; cls: string }> = {
   new: { label: 'جديد', cls: 'bg-rose/15 text-rose' },
@@ -19,11 +19,34 @@ const STATUS: Record<OrderStatus, { label: string; cls: string }> = {
   cancelled: { label: 'ملغي', cls: 'bg-danger/10 text-danger' },
 }
 
+const FLOW: OrderStatus[] = ['new', 'confirmed', 'preparing', 'shipped', 'delivered']
+const nextStatus = (s: OrderStatus): OrderStatus | null => {
+  const i = FLOW.indexOf(s)
+  return i >= 0 && i < FLOW.length - 1 ? FLOW[i + 1] : null
+}
+
+/** Compose a WhatsApp message to the customer about the order's current status. */
+function waCustomer(order: Order, storeName: string): string {
+  const n = order.order_no
+  let body: string
+  switch (order.status) {
+    case 'confirmed': body = `تم تأكيد طلبك ✅\nرقم الطلب: ${n}\nهنجهّزه ونتواصل معاكي للتوصيل.`; break
+    case 'preparing': body = `طلبك ${n} بيتجهّز دلوقتي 🛍️`; break
+    case 'shipped': body = `طلبك ${n} اتشحن وفي الطريق إليكي 🚚\nالإجمالي: ${money(order.total)}`; break
+    case 'delivered': body = `تم توصيل طلبك ${n} 🌸\nشكراً لتسوّقك معانا، في انتظارك تاني!`; break
+    case 'cancelled': body = `بخصوص طلبك ${n} — للأسف اتلغى. لو حابة تعرفي التفاصيل تواصلي معانا.`; break
+    default: body = `بخصوص طلبك ${n} 🌸`
+  }
+  return `https://wa.me/${order.customer_phone.replace(/\D/g, '')}?text=${encodeURIComponent(`${body}\n— ${storeName}`)}`
+}
+
 export default function Orders() {
   const { isAdmin, profile } = useAuth()
   const orders = useLiveQuery(() => db.orders.orderBy('created_at').reverse().toArray(), []) ?? []
   const items = useLiveQuery(() => db.order_items.toArray(), []) ?? []
+  const settings = useLiveQuery(() => db.settings.get(1), []) as Settings | undefined
   const [filter, setFilter] = useState<'active' | 'all'>('active')
+  const storeName = settings?.store_name ?? 'Loly Store'
 
   const newCount = orders.filter((o) => o.status === 'new').length
   const shown = useMemo(
@@ -45,9 +68,9 @@ export default function Orders() {
       {shown.length === 0 ? (
         <div className="card"><Empty icon={<ShoppingBag size={40} />} title="مفيش أوردرات" hint="الطلبات من المتجر الأونلاين هتظهر هنا" /></div>
       ) : (
-        <div className="space-y-3">
+        <div className="grid lg:grid-cols-2 gap-3">
           {shown.map((o) => (
-            <OrderCard key={o.id} order={o} items={items.filter((i) => i.order_id === o.id)} userId={profile?.id ?? null} />
+            <OrderCard key={o.id} order={o} items={items.filter((i) => i.order_id === o.id)} userId={profile?.id ?? null} storeName={storeName} />
           ))}
         </div>
       )}
@@ -55,25 +78,51 @@ export default function Orders() {
   )
 }
 
-function OrderCard({ order, items, userId }: { order: Order; items: { id: string; product_name: string; qty: number; unit_price: number }[]; userId: string | null }) {
+function OrderSteps({ status }: { status: OrderStatus }) {
+  if (status === 'cancelled') return <div className="mt-3 rounded-xl bg-danger/10 text-danger text-center text-sm font-bold py-2">الطلب ملغي</div>
+  const idx = FLOW.indexOf(status)
+  return (
+    <div className="flex items-center justify-between mt-3 gap-1">
+      {FLOW.map((s, i) => (
+        <div key={s} className="flex flex-col items-center gap-1 flex-1">
+          <span className={cn('w-6 h-6 rounded-full grid place-items-center text-[10px] font-bold', i <= idx ? 'bg-ok text-white' : 'bg-blush text-cocoa-light border border-pink')}>{i < idx ? '✓' : i + 1}</span>
+          <span className={cn('text-[10px] font-semibold text-center leading-tight', i <= idx ? 'text-cocoa' : 'text-cocoa-light')}>{STATUS[s].label}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function OrderCard({ order, items, userId, storeName }: {
+  order: Order
+  items: { id: string; product_name: string; qty: number; unit_price: number }[]
+  userId: string | null
+  storeName: string
+}) {
   const [busy, setBusy] = useState(false)
-  const st = STATUS[order.status]
+  const next = nextStatus(order.status)
 
   async function convert() {
     setBusy(true)
     try { await convertOrderToSale(order.id, userId); toast('اتحوّل لفاتورة واتخصم من المخزون 🌸') }
     catch { toast('حصل خطأ', 'error') } finally { setBusy(false) }
   }
-  async function setStatus(status: OrderStatus) {
-    await updateOrderStatus(order.id, { status })
-    toast('اتحدّث')
+  async function advance() {
+    if (!next) return
+    await updateOrderStatus(order.id, { status: next })
+    toast(`الطلب بقى: ${STATUS[next].label}`)
+  }
+  async function cancel() {
+    if (!window.confirm('تأكيد إلغاء الطلب؟')) return
+    await updateOrderStatus(order.id, { status: 'cancelled' })
+    toast('اتلغى الطلب')
   }
 
   return (
     <div className="card p-4">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="font-bold text-cocoa">{order.order_no} <span className={cn('chip mr-1', st.cls)}>{st.label}</span></p>
+          <p className="font-bold text-cocoa">{order.order_no} <span className={cn('chip mr-1', STATUS[order.status].cls)}>{STATUS[order.status].label}</span></p>
           <p className="text-[11px] text-cocoa-light">{fmtDateTime(order.created_at)}</p>
         </div>
         <div className="text-left">
@@ -83,10 +132,9 @@ function OrderCard({ order, items, userId }: { order: Order; items: { id: string
       </div>
 
       <div className="mt-2 rounded-2xl bg-blush/40 p-3">
-        <div className="flex items-center gap-3 text-sm">
+        <div className="flex items-center gap-3 text-sm flex-wrap">
           <span className="font-bold text-cocoa">{order.customer_name}</span>
           <a href={`tel:${order.customer_phone}`} className="text-cocoa-light flex items-center gap-1" dir="ltr"><Phone size={13} /> {order.customer_phone}</a>
-          <a href={`https://wa.me/${order.customer_phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="text-ok"><MessageCircle size={16} /></a>
         </div>
         {order.address && <p className="text-xs text-cocoa-light mt-1">📍 {order.address}</p>}
         {order.note && <p className="text-xs text-cocoa-light mt-1">📝 {order.note}</p>}
@@ -99,16 +147,18 @@ function OrderCard({ order, items, userId }: { order: Order; items: { id: string
       </ul>
       <div className="text-xs text-cocoa-light mt-1">الشحن: {order.shipping > 0 ? money(order.shipping) : 'مجاني'}{order.discount > 0 ? ` · خصم: ${money(order.discount)}` : ''}</div>
 
-      {order.status !== 'cancelled' && order.status !== 'delivered' && (
-        <div className="flex flex-wrap gap-2 mt-3">
-          {!order.sale_id && (
-            <button onClick={convert} disabled={busy} className="btn-primary text-sm py-2"><CheckCircle2 size={16} /> تأكيد وتحويل لفاتورة</button>
-          )}
-          {order.status === 'new' && <button onClick={() => setStatus('confirmed')} className="btn-ghost text-sm py-2">تأكيد بس</button>}
-          {(order.status === 'confirmed' || order.status === 'preparing') && <button onClick={() => setStatus('shipped')} className="btn-ghost text-sm py-2"><Truck size={16} /> اتشحن</button>}
-          <button onClick={() => setStatus('cancelled')} className="btn-ghost text-sm py-2 text-danger border-danger/30"><X size={16} /> إلغاء</button>
-        </div>
-      )}
+      <OrderSteps status={order.status} />
+
+      <div className="flex flex-wrap gap-2 mt-3">
+        {!order.sale_id && order.status !== 'cancelled' && (
+          <button onClick={convert} disabled={busy} className="btn-primary text-sm py-2"><CheckCircle2 size={16} /> تأكيد وتحويل لفاتورة</button>
+        )}
+        {next && <button onClick={advance} className="btn-ghost text-sm py-2"><Truck size={15} /> {STATUS[next].label} ›</button>}
+        <a href={waCustomer(order, storeName)} target="_blank" rel="noreferrer" className="btn-ghost text-sm py-2 text-ok border-ok/30"><MessageCircle size={15} /> بلّغ واتساب</a>
+        {order.status !== 'cancelled' && order.status !== 'delivered' && (
+          <button onClick={cancel} className="btn-ghost text-sm py-2 text-danger border-danger/30"><X size={16} /> إلغاء</button>
+        )}
+      </div>
       {order.sale_id && <p className="text-[11px] text-ok mt-2 font-semibold">✓ اتحوّل لفاتورة بيع</p>}
     </div>
   )
