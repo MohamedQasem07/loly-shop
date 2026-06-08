@@ -103,9 +103,11 @@ export default function Store() {
   const list = useMemo(() => {
     const term = q.trim().toLowerCase()
     return products
-      .filter((p) => (cat === 'all' ? true : p.category_id === cat))
+      .filter((p) => (cat === 'all' ? true : cat === 'offers' ? priceOf(p) < p.price : p.category_id === cat))
       .filter((p) => (!term ? true : p.name.toLowerCase().includes(term)))
-  }, [products, q, cat])
+  }, [products, q, cat, priceOf])
+
+  const hasOffers = useMemo(() => products.some((p) => priceOf(p) < p.price), [products, priceOf])
 
   const cartLines = useMemo(
     () => Object.entries(cart).map(([id, qty]) => ({ p: products.find((x) => x.id === id)!, qty })).filter((l) => l.p),
@@ -172,7 +174,7 @@ export default function Store() {
       <main className="max-w-6xl mx-auto px-4 py-5 pb-28">
         {view === 'shop' && (
           <Catalog
-            info={info} products={list} allCount={products.length} cats={cats}
+            info={info} products={list} allCount={products.length} cats={cats} hasOffers={hasOffers}
             q={q} setQ={setQ} cat={cat} setCat={setCat}
             priceOf={priceOf} onOpen={openProduct} onAdd={(id) => add(id)} cart={cart}
           />
@@ -231,9 +233,9 @@ export default function Store() {
 
 /* ───────────────────────── Catalog ───────────────────────── */
 
-function Catalog({ info, products, allCount, cats, q, setQ, cat, setCat, priceOf, onOpen, onAdd, cart }: {
+function Catalog({ info, products, allCount, cats, hasOffers, q, setQ, cat, setCat, priceOf, onOpen, onAdd, cart }: {
   info: SInfo | null
-  products: SP[]; allCount: number; cats: SC[]
+  products: SP[]; allCount: number; cats: SC[]; hasOffers: boolean
   q: string; setQ: (v: string) => void; cat: string; setCat: (v: string) => void
   priceOf: (p: SP) => number; onOpen: (id: string) => void; onAdd: (id: string) => void; cart: Record<string, number>
 }) {
@@ -274,6 +276,7 @@ function Catalog({ info, products, allCount, cats, q, setQ, cat, setCat, priceOf
       {/* Categories */}
       <div className="flex gap-2 overflow-x-auto pb-2 mb-4 -mx-1 px-1">
         <Chip active={cat === 'all'} onClick={() => setCat('all')}>الكل</Chip>
+        {hasOffers && <Chip active={cat === 'offers'} onClick={() => setCat('offers')}>🔥 عروض</Chip>}
         {cats.slice().sort((a, b) => a.sort_order - b.sort_order).map((c) => (
           <Chip key={c.id} active={cat === c.id} onClick={() => setCat(c.id)}>{c.name_ar ?? c.name}</Chip>
         ))}

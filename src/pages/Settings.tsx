@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Plus, Store, Tags, Loader2, ShieldAlert, KeyRound, Globe, Copy, ExternalLink, Sparkles } from 'lucide-react'
+import { Plus, Store, Tags, Loader2, ShieldAlert, KeyRound, Globe, Copy, ExternalLink, Sparkles, Percent, Trash2 } from 'lucide-react'
 import { db } from '@/lib/db'
 import { supabase } from '@/lib/supabase'
+import { money, num } from '@/lib/format'
+import { cn } from '@/lib/cn'
+import { uuid } from '@/lib/ids'
 import { Field, PageHeader } from '@/components/ui'
 import { ImageUpload } from '@/components/ImageUpload'
-import { saveSettings, saveCategory, save } from '@/data/repo'
+import { saveSettings, saveCategory, save, removeRow } from '@/data/repo'
 import { useAuth } from '@/store/auth'
 import { toast } from '@/store/ui'
-import type { Category, Settings as SettingsT } from '@/lib/types'
+import type { Category, Discount, Settings as SettingsT } from '@/lib/types'
 
 export default function Settings() {
   const { isAdmin } = useAuth()
@@ -28,6 +31,7 @@ export default function Settings() {
       <PageHeader title="الإعدادات" subtitle="بيانات المحل والنظام" />
       <StoreForm settings={settings} />
       <StoreIdentity settings={settings} />
+      <DiscountsManager />
       <div className="grid lg:grid-cols-2 gap-5 items-start">
         <StoreSection settings={settings} />
         <CategoriesManager />
@@ -163,6 +167,94 @@ function StoreForm({ settings }: { settings?: SettingsT }) {
           {busy && <Loader2 size={18} className="animate-spin" />} حفظ
         </button>
       </div>
+    </div>
+  )
+}
+
+function DiscountsManager() {
+  const discounts = (useLiveQuery(() => db.discounts.toArray(), []) ?? []) as Discount[]
+  const categories = useLiveQuery(() => db.categories.toArray(), []) ?? []
+  const products = useLiveQuery(() => db.products.filter((p) => p.is_active).toArray(), []) ?? []
+  const [adding, setAdding] = useState(false)
+  const [name, setName] = useState('')
+  const [type, setType] = useState<'percent' | 'amount'>('percent')
+  const [value, setValue] = useState(0)
+  const [scope, setScope] = useState<'all' | 'category' | 'product'>('all')
+  const [categoryId, setCategoryId] = useState('')
+  const [productId, setProductId] = useState('')
+
+  function resetForm() { setName(''); setType('percent'); setValue(0); setScope('all'); setCategoryId(''); setProductId('') }
+
+  async function add() {
+    if (!name.trim()) return toast('اكتب اسم العرض', 'error')
+    if (value <= 0) return toast('اكتب قيمة الخصم', 'error')
+    if (scope === 'category' && !categoryId) return toast('اختر التصنيف', 'error')
+    if (scope === 'product' && !productId) return toast('اختر المنتج', 'error')
+    await save('discounts', {
+      id: uuid(), name: name.trim(), type, value: Number(value), scope,
+      category_id: scope === 'category' ? categoryId : null,
+      product_id: scope === 'product' ? productId : null,
+      is_active: true, starts_at: null, ends_at: null, created_at: new Date().toISOString(),
+    })
+    toast('تمت إضافة العرض 🎉')
+    resetForm(); setAdding(false)
+  }
+  async function toggle(d: Discount) { await save('discounts', { ...d, is_active: !d.is_active }) }
+  async function remove(d: Discount) { if (window.confirm('حذف العرض؟')) await removeRow('discounts', d.id) }
+
+  const scopeLabel = (d: Discount) =>
+    d.scope === 'all' ? 'كل المنتجات'
+      : d.scope === 'category' ? (categories.find((c) => c.id === d.category_id)?.name_ar ?? 'تصنيف')
+        : (products.find((p) => p.id === d.product_id)?.name ?? 'منتج')
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2 text-cocoa"><Percent size={18} className="text-rose" /><h2 className="font-bold">العروض والخصومات</h2><span className="text-xs text-cocoa-light">— تظهر في المتجر الأونلاين</span></div>
+        <button onClick={() => setAdding((a) => !a)} className="btn-primary text-sm py-2"><Plus size={16} /> عرض جديد</button>
+      </div>
+
+      {adding && (
+        <div className="rounded-2xl bg-blush/40 p-4 mb-4 space-y-3">
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Field label="اسم العرض"><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="عرض الصيف 🌞" /></Field>
+            <Field label="نوع الخصم">
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setType('percent')} className={cn('flex-1 rounded-xl border-2 py-2 text-sm font-bold', type === 'percent' ? 'border-rose bg-rose/5 text-rose' : 'border-pink text-cocoa-light')}>نسبة %</button>
+                <button type="button" onClick={() => setType('amount')} className={cn('flex-1 rounded-xl border-2 py-2 text-sm font-bold', type === 'amount' ? 'border-rose bg-rose/5 text-rose' : 'border-pink text-cocoa-light')}>مبلغ ثابت</button>
+              </div>
+            </Field>
+            <Field label={type === 'percent' ? 'النسبة %' : 'المبلغ (ج.م)'}><input className="input" type="number" inputMode="decimal" value={value || ''} onChange={(e) => setValue(+e.target.value || 0)} /></Field>
+            <Field label="يطبّق على">
+              <select className="input" value={scope} onChange={(e) => setScope(e.target.value as 'all' | 'category' | 'product')}>
+                <option value="all">كل المنتجات</option>
+                <option value="category">تصنيف معيّن</option>
+                <option value="product">منتج معيّن</option>
+              </select>
+            </Field>
+            {scope === 'category' && <Field label="التصنيف"><select className="input" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}><option value="">— اختر —</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name_ar ?? c.name}</option>)}</select></Field>}
+            {scope === 'product' && <Field label="المنتج"><select className="input" value={productId} onChange={(e) => setProductId(e.target.value)}><option value="">— اختر —</option>{products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
+          </div>
+          <div className="flex justify-end gap-2"><button onClick={() => { resetForm(); setAdding(false) }} className="btn-ghost text-sm">إلغاء</button><button onClick={add} className="btn-primary text-sm">إضافة العرض</button></div>
+        </div>
+      )}
+
+      {discounts.length === 0 ? (
+        <p className="text-sm text-cocoa-light text-center py-4">مفيش عروض لسه. اعمل أول عرض وهيظهر للعملاء في المتجر 🎉</p>
+      ) : (
+        <div className="space-y-2">
+          {discounts.map((d) => (
+            <div key={d.id} className="flex items-center gap-3 rounded-2xl border border-pink/40 p-3">
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-cocoa truncate">{d.name} <span className="chip bg-rose/10 text-rose mr-1">{d.type === 'percent' ? `${num(d.value)}%` : money(d.value)}</span></p>
+                <p className="text-xs text-cocoa-light">على: {scopeLabel(d)}</p>
+              </div>
+              <button onClick={() => toggle(d)} className={cn('chip border', d.is_active ? 'bg-ok/10 text-ok border-ok/20' : 'bg-blush text-cocoa-light border-pink')}>{d.is_active ? 'فعّال' : 'موقوف'}</button>
+              <button onClick={() => remove(d)} className="text-cocoa-light hover:text-danger" title="حذف"><Trash2 size={16} /></button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
