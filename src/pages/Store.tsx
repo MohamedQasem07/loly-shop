@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowRight, Banknote, CheckCircle2, ChevronDown, Clock, ImageOff, Lock, MapPin, Minus, Plus,
   RefreshCcw, Search, Share2, ShieldCheck, ShoppingBag, ShoppingCart, Smartphone,
-  Sparkles, Star, Truck, MessageCircle, Phone, Tag, Ticket,
+  Sparkles, Star, Truck, MessageCircle, Phone, Tag, Ticket, Heart,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { uuid } from '@/lib/ids'
@@ -339,20 +339,28 @@ function ProductCard({ p, unit, inCart, rating, onOpen, onAdd }: { p: SP; unit: 
   const off = hasDisc ? Math.round((1 - unit / p.price) * 100) : 0
   const out = p.stock_qty <= 0
   const hasVariants = (p.colors?.length ?? 0) > 0 || (p.sizes?.length ?? 0) > 0
+  const [fav, setFav] = useState(false)
   return (
     <div onClick={onOpen} className="card p-2.5 sm:p-3 flex flex-col text-right cursor-pointer group hover:shadow-lift hover:-translate-y-1 transition-all">
       <div className="aspect-square rounded-2xl bg-blush mb-2.5 overflow-hidden grid place-items-center text-rose/40 relative">
         {p.image_url ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" /> : <ImageOff size={30} />}
-        {hasDisc && <span className="absolute top-2 right-2 bg-rose text-white text-[10px] font-extrabold rounded-full px-2 py-0.5 shadow">-{off}%</span>}
+        <button
+          onClick={(e) => { e.stopPropagation(); setFav((f) => !f) }}
+          className="absolute top-2 left-2 w-8 h-8 rounded-full bg-white/90 backdrop-blur grid place-items-center shadow-sm hover:scale-110 active:scale-95 transition"
+          aria-label="إضافة للمفضلة"
+        >
+          <Heart size={15} className={cn('transition-colors', fav ? 'text-rose fill-rose' : 'text-rose/70')} />
+        </button>
+        {hasDisc && <span className="absolute top-2 right-2 bg-gold-grad text-white text-[10px] font-extrabold rounded-full px-2 py-0.5 shadow">خصم {off}%</span>}
         {out && <span className="absolute inset-0 bg-white/55 grid place-items-center text-cocoa font-bold text-sm">نفد المخزون</span>}
       </div>
-      <p className="font-bold text-sm text-cocoa leading-tight line-clamp-2 min-h-[2.5rem]">{p.name}</p>
+      <p className="font-display font-bold text-sm text-cocoa leading-tight line-clamp-2 min-h-[2.5rem]">{p.name}</p>
       {rating && rating.review_count > 0 && (
         <div className="flex items-center gap-1 mt-0.5"><Stars n={rating.avg_rating} size={11} /><span className="text-[10px] text-cocoa-light">({rating.review_count})</span></div>
       )}
       <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-        <span className="font-extrabold text-rose">{egp(unit)}</span>
-        {hasDisc && <span className="text-[11px] text-cocoa-light line-through">{egp(p.price)}</span>}
+        <span className="font-extrabold text-rose tnum">{egp(unit)}</span>
+        {hasDisc && <span className="text-[11px] text-cocoa-light line-through tnum">{egp(p.price)}</span>}
       </div>
       <button
         onClick={(e) => { e.stopPropagation(); if (hasVariants) onOpen(); else onAdd() }}
@@ -432,7 +440,7 @@ function ProductDetail({ p, info, catName, unit, inCart, related, priceOf, ratin
           <div className="card p-3">
             <div className="aspect-square rounded-2xl bg-blush overflow-hidden grid place-items-center text-rose/40 relative">
               {mainImg ? <img src={mainImg} alt={p.name} className="w-full h-full object-cover" /> : <ImageOff size={56} />}
-              {hasDisc && <span className="absolute top-3 right-3 bg-rose text-white text-xs font-extrabold rounded-full px-3 py-1 shadow">خصم {off}%</span>}
+              {hasDisc && <span className="absolute top-3 right-3 bg-gold-grad text-white text-xs font-extrabold rounded-full px-3 py-1 shadow">خصم {off}%</span>}
               <button onClick={share} className="absolute top-3 left-3 bg-white/90 hover:bg-white text-cocoa rounded-full p-2 shadow transition" aria-label="مشاركة"><Share2 size={16} /></button>
             </div>
             {gallery.length > 1 && (
@@ -456,9 +464,9 @@ function ProductDetail({ p, info, catName, unit, inCart, related, priceOf, ratin
           )}
 
           <div className="flex items-end gap-3 mt-4">
-            <span className="font-extrabold text-rose text-3xl">{egp(unit)}</span>
-            {hasDisc && <span className="text-cocoa-light line-through text-lg mb-1">{egp(p.price)}</span>}
-            {hasDisc && <span className="chip bg-ok/15 text-ok mb-1.5">وفّرتي {off}%</span>}
+            <span className="font-extrabold text-rose text-3xl tnum">{egp(unit)}</span>
+            {hasDisc && <span className="text-cocoa-light line-through text-lg mb-1 tnum">{egp(p.price)}</span>}
+            {hasDisc && <span className="chip-ok mb-1.5">وفّرتي {off}%</span>}
           </div>
 
           <div className="flex flex-wrap items-center gap-2 mt-3">

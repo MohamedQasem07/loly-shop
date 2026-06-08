@@ -29,7 +29,7 @@
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 font-semibold transition-all active:scale-[.98] disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 font-bold transition-all active:scale-[.98] disabled:opacity-50 disabled:pointer-events-none;
   }
   .btn-primary {
     @apply btn bg-rose-grad text-white shadow-soft hover:shadow-lift hover:-translate-y-0.5;
@@ -38,22 +38,69 @@
     @apply btn bg-gold-grad text-white shadow-soft hover:-translate-y-0.5;
   }
   .btn-ghost {
-    @apply btn bg-white text-cocoa border border-pink hover:bg-blush;
+    @apply btn bg-white text-cocoa border border-pink hover:bg-blush hover:border-rose/40;
+  }
+  .btn-soft {
+    @apply btn bg-blush text-rose-dark hover:bg-pink;
   }
   .btn-danger {
     @apply btn bg-danger text-white hover:brightness-95;
   }
+  .btn-icon {
+    @apply btn w-10 h-10 p-0 rounded-2xl;
+  }
   .card {
     @apply bg-white rounded-3xl shadow-card border border-pink/40;
+  }
+  .card-hover {
+    @apply transition-all hover:shadow-soft hover:-translate-y-0.5;
   }
   .input {
     @apply w-full rounded-2xl border border-pink bg-white px-4 py-2.5 text-cocoa placeholder:text-cocoa-light/40 outline-none transition focus:border-rose focus:ring-4 focus:ring-rose/10;
   }
   .label {
-    @apply block text-sm font-semibold text-cocoa-light mb-1.5;
+    @apply block text-sm font-bold text-cocoa-light mb-1.5;
   }
   .chip {
-    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold;
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-extrabold;
+  }
+  .chip-rose {
+    @apply chip bg-blush text-rose-dark;
+  }
+  .chip-gold {
+    @apply chip bg-gold/15 text-gold-dark;
+  }
+  .chip-ok {
+    @apply chip bg-ok/[0.12] text-ok;
+  }
+  .chip-warn {
+    @apply chip bg-warn/15 text-warn;
+  }
+  .chip-danger {
+    @apply chip bg-danger/[0.12] text-danger;
+  }
+  .chip-ink {
+    @apply chip bg-cocoa/[0.08] text-cocoa-light;
+  }
+  .nav-link {
+    @apply flex items-center gap-3 rounded-2xl px-3.5 py-2.5 font-bold transition;
+  }
+}
+
+@layer utilities {
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .no-sb {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-sb::-webkit-scrollbar {
+    display: none;
   }
 }
 
@@ -66,10 +113,9 @@
   background: #f4c0d6;
   border-radius: 999px;
 }
+::-webkit-scrollbar-thumb:hover {
+  background: #efa9c6;
+}
 ::-webkit-scrollbar-track {
   background: transparent;
-}
-
-.safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
 }

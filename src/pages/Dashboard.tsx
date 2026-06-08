@@ -102,8 +102,8 @@ export default function Dashboard() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {stats.balances.map(({ method, balance }) => (
             <div key={method.id} className="rounded-2xl bg-blush/50 border border-pink/40 p-3">
-              <p className="text-xs text-cocoa-light font-semibold">{method.name_ar ?? method.name}</p>
-              <p className={`font-bold mt-1 ${balance < 0 ? 'text-danger' : 'text-cocoa'}`}>{money(balance)}</p>
+              <p className="text-xs text-cocoa-light font-bold">{method.name_ar ?? method.name}</p>
+              <p className={`font-extrabold mt-1 tnum ${balance < 0 ? 'text-danger' : 'text-cocoa'}`}>{money(balance)}</p>
             </div>
           ))}
         </div>
@@ -135,14 +135,17 @@ export default function Dashboard() {
           {stats.best.length === 0 ? (
             <Empty title="لسه مفيش مبيعات" hint="ابدأ البيع من نقطة البيع" />
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-2.5">
               {stats.best.map((b, i) => (
                 <li key={b.name} className="flex items-center gap-3">
-                  <span className="w-7 h-7 rounded-full bg-gold/15 text-gold-dark grid place-items-center text-sm font-bold">
+                  <span className={`w-7 h-7 rounded-xl grid place-items-center text-sm font-extrabold shrink-0 ${i === 0 ? 'bg-gold-grad text-white shadow-soft' : 'bg-blush text-rose-dark'}`}>
                     {i + 1}
                   </span>
-                  <span className="flex-1 font-semibold text-cocoa truncate">{b.name}</span>
-                  <span className="chip bg-rose/10 text-rose">{num(b.qty)} قطعة</span>
+                  <span className="flex-1 font-bold text-cocoa truncate">{b.name}</span>
+                  <div className="hidden sm:block w-20 h-2 rounded-full bg-blush overflow-hidden shrink-0">
+                    <div className="h-full rounded-full bg-rose-grad" style={{ width: `${(b.qty / (stats.best[0]?.qty || 1)) * 100}%` }} />
+                  </div>
+                  <span className="chip-rose tnum shrink-0">{num(b.qty)} قطعة</span>
                 </li>
               ))}
             </ul>
@@ -185,10 +188,10 @@ export default function Dashboard() {
               {stats.recent.map((s) => (
                 <li key={s.id} className="flex items-center justify-between py-2.5">
                   <div className="min-w-0">
-                    <p className="font-bold text-cocoa">{s.invoice_no}</p>
+                    <p className="font-extrabold text-cocoa">{s.invoice_no}</p>
                     <p className="text-xs text-cocoa-light">{fmtDateTime(s.created_at)}</p>
                   </div>
-                  <span className="font-bold text-rose">{money(s.total)}</span>
+                  <span className="font-extrabold text-rose tnum">{money(s.total)}</span>
                 </li>
               ))}
             </ul>
@@ -207,10 +210,10 @@ function Stat({ icon, label, value, tone }: { icon: ReactNode; label: string; va
     danger: 'bg-danger text-white',
   }
   return (
-    <div className="card p-4 hover:shadow-soft transition">
-      <div className={`w-10 h-10 rounded-2xl grid place-items-center mb-3 shadow-soft ${tones[tone]}`}>{icon}</div>
-      <p className="text-xs text-cocoa-light font-semibold">{label}</p>
-      <p className="font-display text-xl font-extrabold text-cocoa mt-0.5">{value}</p>
+    <div className="card card-hover p-4">
+      <div className={`w-11 h-11 rounded-2xl grid place-items-center mb-3 shadow-soft ${tones[tone]}`}>{icon}</div>
+      <p className="text-xs text-cocoa-light font-bold">{label}</p>
+      <p className="font-display text-xl font-extrabold text-cocoa mt-0.5 tnum">{value}</p>
     </div>
   )
 }

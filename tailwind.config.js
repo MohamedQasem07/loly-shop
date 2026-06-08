@@ -22,7 +22,7 @@ export default {
           dark: '#B9852A',
         },
         cocoa: {
-          DEFAULT: '#6B4630',
+          DEFAULT: '#5B3A28',
           light: '#8A6A55',
         },
         ok: '#3FAE78',
@@ -40,9 +40,9 @@ export default {
       },
       boxShadow: {
         soft: '0 8px 28px -10px rgba(209, 59, 131, 0.30)',
-        card: '0 4px 18px -8px rgba(107, 70, 48, 0.14)',
+        card: '0 4px 18px -8px rgba(91, 58, 40, 0.14)',
         glow: '0 0 0 4px rgba(232, 91, 158, 0.12)',
-        lift: '0 14px 34px -12px rgba(209, 59, 131, 0.40)',
+        lift: '0 18px 40px -14px rgba(209, 59, 131, 0.42)',
       },
       backgroundImage: {
         'rose-grad': 'linear-gradient(135deg, #F06CA8 0%, #D13B83 100%)',
