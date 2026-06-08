@@ -23,6 +23,33 @@ interface SInfo {
 
 const egp = (n: number) => `${(n || 0).toLocaleString('ar-EG', { maximumFractionDigits: 2 })} ج.م`
 
+function waLink(phone: string | null | undefined, text: string): string | null {
+  const num = (phone ?? '').replace(/\D/g, '')
+  return num ? `https://wa.me/${num}?text=${encodeURIComponent(text)}` : null
+}
+
+function orderMessage(
+  storeName: string,
+  lines: { name: string; qty: number; lineTotal: number }[],
+  total: number,
+  c?: { name?: string; phone?: string; address?: string },
+): string {
+  const items = lines.map((l) => `• ${l.name} × ${l.qty} = ${egp(l.lineTotal)}`).join('\n')
+  let msg = `السلام عليكم 🌸\nعايزة أطلب من ${storeName}:\n${items}\n\nالإجمالي: ${egp(total)}`
+  if (c?.name) msg += `\nالاسم: ${c.name}`
+  if (c?.phone) msg += `\nالموبايل: ${c.phone}`
+  if (c?.address) msg += `\nالعنوان: ${c.address}`
+  return msg
+}
+
+const ORDER_FLOW: { key: string; label: string }[] = [
+  { key: 'new', label: 'تم استلام الطلب' },
+  { key: 'confirmed', label: 'تم تأكيد الطلب' },
+  { key: 'preparing', label: 'بيتجهّز' },
+  { key: 'shipped', label: 'اتشحن' },
+  { key: 'delivered', label: 'اتسلّم' },
+]
+
 export default function Store() {
   const [info, setInfo] = useState<SInfo | null>(null)
   const [products, setProducts] = useState<SP[]>([])
@@ -32,7 +59,7 @@ export default function Store() {
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('all')
   const [cart, setCart] = useState<Record<string, number>>({})
-  const [view, setView] = useState<'shop' | 'product' | 'checkout' | 'done'>('shop')
+  const [view, setView] = useState<'shop' | 'product' | 'checkout' | 'done' | 'track'>('shop')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [doneNo, setDoneNo] = useState('')
 
@@ -182,11 +209,14 @@ export default function Store() {
               <a href={`https://wa.me/${info.store_whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="btn-ghost mt-5 inline-flex"><MessageCircle size={18} /> تواصل واتساب</a>
             )}
             <button onClick={() => setView('shop')} className="btn-primary w-full mt-3">تسوّقي تاني</button>
+            <button onClick={() => setView('track')} className="btn-ghost w-full mt-2">تتبّع طلبك</button>
           </div>
         )}
+
+        {view === 'track' && <TrackOrder onBack={() => setView('shop')} />}
       </main>
 
-      <StoreFooter info={info} />
+      <StoreFooter info={info} onTrack={() => setView('track')} />
 
       {/* Floating cart (mobile) */}
       {(view === 'shop' || view === 'product') && count > 0 && (
@@ -376,7 +406,17 @@ function ProductDetail({ p, info, catName, unit, inCart, related, priceOf, onAdd
           </div>
 
           {info?.store_whatsapp && (
-            <a href={`https://wa.me/${info.store_whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent('عايزة أستفسر عن: ' + p.name)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-bold text-cocoa-light hover:text-rose mt-4 transition">
+            <a
+              href={waLink(info.store_whatsapp, orderMessage(info.store_name ?? 'Loly Store', [{ name: p.name, qty, lineTotal: unit * qty }], unit * qty)) ?? '#'}
+              target="_blank" rel="noreferrer"
+              className={cn('btn w-full mt-3 bg-[#25D366] text-white hover:brightness-95', out && 'opacity-50 pointer-events-none')}
+            >
+              <MessageCircle size={18} /> اطلب على واتساب
+            </a>
+          )}
+
+          {info?.store_whatsapp && (
+            <a href={`https://wa.me/${info.store_whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent('عايزة أستفسر عن: ' + p.name)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-bold text-cocoa-light hover:text-rose mt-3 transition">
               <MessageCircle size={16} /> عندك استفسار؟ اسألينا واتساب
             </a>
           )}
@@ -556,6 +596,15 @@ function Checkout({ lines, add, dec, remove, subtotal, discount, shipping, total
             <div className="border-t border-pink/40 pt-2.5 mt-1 flex justify-between text-lg"><span className="font-bold text-cocoa">الإجمالي</span><span className="font-extrabold text-rose">{egp(total)}</span></div>
             {err && <p className="text-danger text-sm font-semibold text-center bg-danger/10 rounded-xl py-2 mt-1">{err}</p>}
             <button onClick={place} disabled={busy} className="btn-primary w-full py-3.5 mt-1">{busy ? 'جاري الإرسال…' : 'تأكيد الطلب'}</button>
+            {info?.store_whatsapp && (
+              <a
+                href={waLink(info.store_whatsapp, orderMessage(info.store_name ?? 'Loly Store', lines.map((l) => ({ name: l.p.name, qty: l.qty, lineTotal: l.unit * l.qty })), total, { name, phone, address })) ?? '#'}
+                target="_blank" rel="noreferrer"
+                className="btn w-full bg-[#25D366] text-white hover:brightness-95"
+              >
+                <MessageCircle size={18} /> أو اطلبي على واتساب
+              </a>
+            )}
             <p className="text-[11px] text-cocoa-light text-center flex items-center justify-center gap-1"><Lock size={11} /> بياناتك آمنة ولن تُستخدم إلا للتوصيل</p>
           </div>
         </div>
@@ -566,7 +615,7 @@ function Checkout({ lines, add, dec, remove, subtotal, discount, shipping, total
 
 /* ───────────────────────── small UI bits ───────────────────────── */
 
-function StoreFooter({ info }: { info: SInfo | null }) {
+function StoreFooter({ info, onTrack }: { info: SInfo | null; onTrack: () => void }) {
   if (!info) return null
   const wa = info.store_whatsapp ? `https://wa.me/${info.store_whatsapp.replace(/\D/g, '')}` : null
   const socials = [
@@ -592,6 +641,7 @@ function StoreFooter({ info }: { info: SInfo | null }) {
             {info.store_phone && <li className="inline-flex items-center gap-2" dir="ltr"><Phone size={15} /> {info.store_phone}</li>}
             {info.store_hours && <li className="inline-flex items-center gap-2"><Clock size={15} /> {info.store_hours}</li>}
             {info.store_address && <li className="inline-flex items-center gap-2"><MapPin size={15} /> {info.store_address}</li>}
+            <li><button onClick={onTrack} className="hover:text-rose inline-flex items-center gap-2"><Search size={15} /> تتبّعي طلبك</button></li>
           </ul>
         </div>
         <div>
@@ -622,6 +672,77 @@ function FbIcon() {
 }
 function TtIcon() {
   return (<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16.6 5.82a4.28 4.28 0 01-1.06-2.82h-3.2v12.85a2.59 2.59 0 01-2.59 2.5 2.59 2.59 0 01-2.59-2.59 2.59 2.59 0 013.37-2.47v-3.3a5.9 5.9 0 00-.78-.05A5.89 5.89 0 003.46 16a5.89 5.89 0 0010.06 4.16 5.86 5.86 0 001.72-4.16V9.43a7.55 7.55 0 004.42 1.42V7.6a4.28 4.28 0 01-3.06-1.78z"/></svg>)
+}
+
+function TrackOrder({ onBack }: { onBack: () => void }) {
+  const [orderNo, setOrderNo] = useState('')
+  const [phone, setPhone] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const [result, setResult] = useState<{ order_no: string; status: string; total: number; created_at: string; items: { name: string; qty: number; price: number }[] } | null>(null)
+
+  async function track() {
+    if (!orderNo.trim() || !phone.trim()) { setErr('اكتبي رقم الطلب ورقم الموبايل'); return }
+    setBusy(true); setErr(''); setResult(null)
+    try {
+      const { data, error } = await supabase.rpc('track_order', { p_order_no: orderNo.trim(), p_phone: phone.trim() })
+      if (error) throw error
+      const row = Array.isArray(data) ? data[0] : null
+      if (!row) { setErr('مفيش طلب بالبيانات دي — تأكدي من رقم الطلب والموبايل'); return }
+      setResult({ order_no: row.order_no, status: row.status, total: Number(row.total), created_at: row.created_at, items: (row.items ?? []) as { name: string; qty: number; price: number }[] })
+    } catch {
+      setErr('حصل خطأ، حاولي تاني')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const cancelled = result?.status === 'cancelled'
+  const currentIdx = result ? ORDER_FLOW.findIndex((s) => s.key === result.status) : -1
+
+  return (
+    <div className="max-w-lg mx-auto mt-2 animate-fadeIn">
+      <button onClick={onBack} className="inline-flex items-center gap-1.5 text-cocoa-light hover:text-rose font-bold text-sm mb-4 transition"><ArrowRight size={16} /> رجوع للمتجر</button>
+      <h2 className="font-display text-2xl font-extrabold text-cocoa mb-4">تتبّعي طلبك</h2>
+      <div className="card p-4 space-y-3">
+        <label className="block"><span className="label">رقم الطلب</span><input className="input" dir="ltr" value={orderNo} onChange={(e) => setOrderNo(e.target.value)} placeholder="ORD-XXXXXX" /></label>
+        <label className="block"><span className="label">رقم الموبايل</span><input className="input" dir="ltr" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="01xxxxxxxxx" /></label>
+        {err && <p className="text-danger text-sm font-semibold text-center bg-danger/10 rounded-xl py-2">{err}</p>}
+        <button onClick={track} disabled={busy} className="btn-primary w-full">{busy ? 'جاري البحث…' : 'تتبّع'}</button>
+      </div>
+
+      {result && (
+        <div className="card p-5 mt-4 animate-pop">
+          <div className="flex items-center justify-between mb-4">
+            <div><p className="font-bold text-cocoa">{result.order_no}</p><p className="text-xs text-cocoa-light">{new Date(result.created_at).toLocaleDateString('ar-EG')}</p></div>
+            <span className="font-extrabold text-rose">{egp(result.total)}</span>
+          </div>
+          {cancelled ? (
+            <div className="rounded-2xl bg-danger/10 text-danger text-center font-bold py-4">الطلب ملغي</div>
+          ) : (
+            <ol>
+              {ORDER_FLOW.map((s, i) => {
+                const done = i <= currentIdx
+                return (
+                  <li key={s.key} className="flex items-center gap-3 pb-4 last:pb-0">
+                    <span className={cn('w-7 h-7 rounded-full grid place-items-center shrink-0', done ? 'bg-ok text-white' : 'bg-blush text-cocoa-light')}>
+                      {done ? <CheckCircle2 size={16} /> : <span className="w-2 h-2 rounded-full bg-current" />}
+                    </span>
+                    <span className={cn('font-semibold', done ? 'text-cocoa' : 'text-cocoa-light')}>{s.label}</span>
+                  </li>
+                )
+              })}
+            </ol>
+          )}
+          {result.items.length > 0 && (
+            <div className="border-t border-pink/40 mt-2 pt-3 space-y-1.5 text-sm">
+              {result.items.map((it, i) => <div key={i} className="flex justify-between text-cocoa-light"><span>{it.name} × {it.qty}</span><span>{egp(Number(it.price) * it.qty)}</span></div>)}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
