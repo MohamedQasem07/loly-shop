@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   BarChart3, Boxes, Building2, Calculator, ClipboardList, Home, LogOut, MoreHorizontal, Package,
@@ -11,6 +11,7 @@ import { useSyncStatus } from '@/data/useSync'
 import { syncNow } from '@/data/sync'
 import type { UserRole } from '@/lib/types'
 import { cn } from '@/lib/cn'
+import { Spinner } from '@/components/ui'
 import { LOGO_URL } from '@/lib/assets'
 
 interface NavItem {
@@ -68,7 +69,9 @@ export function Layout() {
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar />
         <main className="flex-1 p-4 sm:p-6 lg:px-8 pb-28 lg:pb-8 max-w-[1760px] w-full mx-auto">
-          <Outlet />
+          <Suspense fallback={<div className="grid place-items-center py-24"><Spinner className="w-7 h-7" /></div>}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
 

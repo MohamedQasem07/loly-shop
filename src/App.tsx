@@ -1,27 +1,30 @@
+import { lazy, Suspense } from 'react'
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from '@/store/auth'
 import { Toaster } from '@/components/Toaster'
 import { Layout } from '@/components/Layout'
 import { Spinner } from '@/components/ui'
 import Login from '@/pages/Login'
-import Dashboard from '@/pages/Dashboard'
-import Products from '@/pages/Products'
-import POS from '@/pages/POS'
-import Settings from '@/pages/Settings'
-import Purchases from '@/pages/Purchases'
-import Suppliers from '@/pages/Suppliers'
-import Expenses from '@/pages/Expenses'
-import Treasury from '@/pages/Treasury'
-import Reports from '@/pages/Reports'
-import Customers from '@/pages/Customers'
-import StockMovements from '@/pages/StockMovements'
-import Returns from '@/pages/Returns'
-import Users from '@/pages/Users'
-import Accounting from '@/pages/Accounting'
-import Orders from '@/pages/Orders'
-import Store from '@/pages/Store'
 import type { ReactNode } from 'react'
 import { LOGO_URL } from '@/lib/assets'
+
+// Route-level code splitting: each page ships as its own chunk, loaded on demand.
+const Dashboard = lazy(() => import('@/pages/Dashboard'))
+const Products = lazy(() => import('@/pages/Products'))
+const POS = lazy(() => import('@/pages/POS'))
+const Settings = lazy(() => import('@/pages/Settings'))
+const Purchases = lazy(() => import('@/pages/Purchases'))
+const Suppliers = lazy(() => import('@/pages/Suppliers'))
+const Expenses = lazy(() => import('@/pages/Expenses'))
+const Treasury = lazy(() => import('@/pages/Treasury'))
+const Reports = lazy(() => import('@/pages/Reports'))
+const Customers = lazy(() => import('@/pages/Customers'))
+const StockMovements = lazy(() => import('@/pages/StockMovements'))
+const Returns = lazy(() => import('@/pages/Returns'))
+const Users = lazy(() => import('@/pages/Users'))
+const Accounting = lazy(() => import('@/pages/Accounting'))
+const Orders = lazy(() => import('@/pages/Orders'))
+const Store = lazy(() => import('@/pages/Store'))
 
 function Splash() {
   return (
@@ -45,7 +48,7 @@ function Routed() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route path="/store" element={<Store />} />
+      <Route path="/store" element={<Suspense fallback={<Splash />}><Store /></Suspense>} />
       <Route
         element={
           <Protected>
