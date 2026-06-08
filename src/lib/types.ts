@@ -301,6 +301,8 @@ export interface Order {
   total: number
   note: string | null
   sale_id: string | null
+  coupon_code: string | null
+  coupon_discount: number
   created_at: string
 }
 
@@ -324,6 +326,21 @@ export interface Discount {
   scope: DiscountScope
   category_id: string | null
   product_id: string | null
+  is_active: boolean
+  starts_at: string | null
+  ends_at: string | null
+  created_at: string
+}
+
+export interface Coupon {
+  id: string
+  code: string
+  type: 'percent' | 'amount'
+  value: number
+  min_order: number
+  max_discount: number | null
+  max_uses: number | null
+  used_count: number
   is_active: boolean
   starts_at: string | null
   ends_at: string | null
@@ -355,6 +372,7 @@ export const SYNC_TABLES = [
   'journal_entries',
   'journal_lines',
   'discounts',
+  'coupons',
   'orders',
   'order_items',
 ] as const

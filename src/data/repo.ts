@@ -4,7 +4,7 @@ import { syncNow, refreshPending } from './sync'
 import { postSale, postPurchase, postExpense, postReturn, postVoidSale, postAdjust, recordOtherIncome } from './accounting'
 import { docNumber } from '@/lib/counters'
 import type {
-  Product, Category, Supplier, Customer, Expense, Settings, Order, Discount,
+  Product, Category, Supplier, Customer, Expense, Settings, Order, Discount, Coupon,
 } from '@/lib/types'
 
 const nowISO = () => new Date().toISOString()
@@ -685,11 +685,13 @@ export async function convertOrderToSale(orderId: string, cashierId?: string | n
     const p = it.product_id ? await db.products.get(it.product_id) : undefined
     lines.push({ product_id: it.product_id ?? '', product_name: it.product_name, qty: it.qty, unit_price: it.unit_price, unit_cost: p?.cost ?? 0 })
   }
-  const goodsTotal = +(order.subtotal - order.discount).toFixed(2)
+  // order_items already carry the discounted unit prices (product/category offers),
+  // so the only remaining order-level reduction is the coupon. goods = total − shipping.
+  const goodsTotal = +(order.total - order.shipping).toFixed(2)
   const { sale } = await createSale({
     lines,
     payments: method ? [{ payment_method_id: method.id, amount: goodsTotal }] : [],
-    invoiceDiscount: order.discount,
+    invoiceDiscount: order.coupon_discount ?? 0,
     customer_id: null,
     cashier_id: cashierId ?? null,
     note: `أوردر أونلاين ${order.order_no} — ${order.customer_name}`,
@@ -715,4 +717,23 @@ export async function saveDiscount(input: Partial<Discount> & { name: string; va
     created_at: existing?.created_at ?? nowISO(),
   }
   return save('discounts', row)
+}
+
+export async function saveCoupon(input: Partial<Coupon> & { code: string }) {
+  const existing = input.id ? await db.coupons.get(input.id) : undefined
+  const row: Coupon = {
+    id: input.id ?? uuid(),
+    code: input.code.trim().toUpperCase(),
+    type: input.type ?? 'percent',
+    value: Number(input.value) || 0,
+    min_order: Number(input.min_order) || 0,
+    max_discount: input.max_discount ?? null,
+    max_uses: input.max_uses ?? null,
+    used_count: existing?.used_count ?? 0,
+    is_active: input.is_active ?? true,
+    starts_at: input.starts_at ?? null,
+    ends_at: input.ends_at ?? null,
+    created_at: existing?.created_at ?? nowISO(),
+  }
+  return save('coupons', row)
 }

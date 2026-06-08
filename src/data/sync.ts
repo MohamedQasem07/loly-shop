@@ -20,9 +20,10 @@ const NUMERIC_FIELDS: Record<string, string[]> = {
   expenses: ['amount'],
   settings: ['tax_percent', 'shipping_fee'],
   journal_lines: ['debit', 'credit'],
-  orders: ['subtotal', 'discount', 'shipping', 'total'],
+  orders: ['subtotal', 'discount', 'shipping', 'total', 'coupon_discount'],
   order_items: ['qty', 'unit_price', 'line_total'],
   discounts: ['value'],
+  coupons: ['value', 'min_order', 'max_discount', 'max_uses', 'used_count'],
 }
 
 function coerce(table: string, row: Record<string, unknown>) {

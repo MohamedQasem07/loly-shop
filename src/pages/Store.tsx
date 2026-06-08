@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowRight, Banknote, CheckCircle2, ChevronDown, Clock, ImageOff, Lock, MapPin, Minus, Plus,
   RefreshCcw, Search, Share2, ShieldCheck, ShoppingBag, ShoppingCart, Smartphone,
-  Sparkles, Truck, MessageCircle, Phone, Tag,
+  Sparkles, Truck, MessageCircle, Phone, Tag, Ticket,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { uuid } from '@/lib/ids'
@@ -33,9 +33,13 @@ function orderMessage(
   lines: { name: string; qty: number; lineTotal: number }[],
   total: number,
   c?: { name?: string; phone?: string; address?: string },
+  opts?: { couponCode?: string | null; couponDiscount?: number; shipping?: number },
 ): string {
   const items = lines.map((l) => `• ${l.name} × ${l.qty} = ${egp(l.lineTotal)}`).join('\n')
-  let msg = `السلام عليكم 🌸\nعايزة أطلب من ${storeName}:\n${items}\n\nالإجمالي: ${egp(total)}`
+  let msg = `السلام عليكم 🌸\nعايزة أطلب من ${storeName}:\n${items}`
+  if (opts?.couponCode && (opts.couponDiscount ?? 0) > 0) msg += `\nكوبون ${opts.couponCode}: - ${egp(opts.couponDiscount!)}`
+  if ((opts?.shipping ?? 0) > 0) msg += `\nالشحن: ${egp(opts!.shipping!)}`
+  msg += `\nالإجمالي: ${egp(total)}`
   if (c?.name) msg += `\nالاسم: ${c.name}`
   if (c?.phone) msg += `\nالموبايل: ${c.phone}`
   if (c?.address) msg += `\nالعنوان: ${c.address}`
@@ -504,6 +508,40 @@ function Checkout({ lines, add, dec, remove, subtotal, discount, shipping, total
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
+  // coupon
+  const [coupon, setCoupon] = useState('')
+  const [appliedCode, setAppliedCode] = useState<string | null>(null)
+  const [couponDiscount, setCouponDiscount] = useState(0)
+  const [couponMsg, setCouponMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [couponBusy, setCouponBusy] = useState(false)
+
+  const grandTotal = Math.max(0, +(subtotal - couponDiscount + shipping).toFixed(2))
+
+  // (re)validate the applied coupon server-side whenever it changes or the cart total shifts
+  useEffect(() => {
+    if (!appliedCode) { setCouponDiscount(0); return }
+    let cancelled = false
+    setCouponBusy(true)
+    ;(async () => {
+      const { data, error } = await supabase.rpc('validate_coupon', { p_code: appliedCode, p_subtotal: subtotal })
+      if (cancelled) return
+      const row = (Array.isArray(data) ? data[0] : data) as { valid: boolean; reason: string | null; discount: number } | null
+      if (error || !row) { setCouponDiscount(0); setAppliedCode(null); setCouponMsg({ ok: false, text: 'تعذّر التحقق من الكوبون' }) }
+      else if (row.valid) { setCouponDiscount(Number(row.discount) || 0); setCouponMsg({ ok: true, text: `تم تطبيق كوبون ${appliedCode} 🎉` }) }
+      else { setCouponDiscount(0); setAppliedCode(null); setCouponMsg({ ok: false, text: row.reason ?? 'كوبون غير صالح' }) }
+      setCouponBusy(false)
+    })()
+    return () => { cancelled = true }
+  }, [appliedCode, subtotal])
+
+  function applyCoupon() {
+    const code = coupon.trim().toUpperCase()
+    if (!code) return
+    setCouponMsg(null)
+    setAppliedCode(code)
+  }
+  function removeCoupon() { setAppliedCode(null); setCoupon(''); setCouponDiscount(0); setCouponMsg(null) }
+
   if (lines.length === 0) {
     return (
       <div className="card p-12 text-center mt-6 max-w-lg mx-auto">
@@ -524,13 +562,16 @@ function Checkout({ lines, add, dec, remove, subtotal, discount, shipping, total
       const orderNo = 'ORD-' + Date.now().toString().slice(-6) + Math.floor(Math.random() * 90 + 10)
       const { error: e1 } = await supabase.from('orders').insert({
         id: orderId, order_no: orderNo, customer_name: name.trim(), customer_phone: phone.trim(), address: address.trim(),
-        status: 'new', payment, paid: false, subtotal, discount, shipping, total, note: note || null,
+        status: 'new', payment, paid: false, subtotal, discount, shipping, total: grandTotal, note: note || null,
+        coupon_code: appliedCode, coupon_discount: couponDiscount,
       })
       if (e1) throw e1
       const { error: e2 } = await supabase.from('order_items').insert(
         lines.map((l) => ({ id: uuid(), order_id: orderId, product_id: l.p.id, product_name: l.p.name, qty: l.qty, unit_price: l.unit, line_total: +(l.unit * l.qty).toFixed(2) })),
       )
       if (e2) throw e2
+      // mark the coupon used (best effort — tied to this order, idempotent server-side)
+      if (appliedCode) { try { await supabase.rpc('redeem_coupon', { p_order_no: orderNo }) } catch { /* ignore */ } }
       onPlaced(orderNo)
     } catch {
       setErr('حصل خطأ، حاولي تاني')
@@ -594,14 +635,38 @@ function Checkout({ lines, add, dec, remove, subtotal, discount, shipping, total
           <div className="card p-4 space-y-2 text-sm">
             <h3 className="font-bold text-cocoa mb-1">ملخص الطلب</h3>
             <Row label="الإجمالي الفرعي" value={egp(subtotal)} />
-            {discount > 0 && <Row label="الخصم" value={`- ${egp(discount)}`} />}
+            {discount > 0 && <Row label="خصم العروض" value={`- ${egp(discount)}`} />}
+
+            {/* Coupon */}
+            <div className="py-1">
+              {appliedCode && couponDiscount > 0 ? (
+                <div className="flex items-center justify-between rounded-xl bg-ok/10 px-3 py-2">
+                  <span className="inline-flex items-center gap-1.5 text-ok font-extrabold text-xs" dir="ltr"><Ticket size={14} /> {appliedCode}</span>
+                  <span className="flex items-center gap-2.5">
+                    <span className="text-ok font-bold">- {egp(couponDiscount)}</span>
+                    <button type="button" onClick={removeCoupon} className="text-cocoa-light hover:text-danger text-xs font-bold">إزالة</button>
+                  </span>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    className="input flex-1 py-2 text-sm" placeholder="كود الخصم (اختياري)" dir="ltr"
+                    value={coupon} onChange={(e) => setCoupon(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon() } }}
+                  />
+                  <button type="button" onClick={applyCoupon} disabled={couponBusy || !coupon.trim()} className="btn-ghost text-sm py-2 px-4 border-2 border-rose text-rose hover:bg-rose/5 disabled:opacity-50">{couponBusy ? '…' : 'تطبيق'}</button>
+                </div>
+              )}
+              {couponMsg && <p className={cn('text-[11px] mt-1.5 font-semibold', couponMsg.ok ? 'text-ok' : 'text-danger')}>{couponMsg.text}</p>}
+            </div>
+
             <Row label="الشحن" value={shipping > 0 ? egp(shipping) : 'مجاني'} />
-            <div className="border-t border-pink/40 pt-2.5 mt-1 flex justify-between text-lg"><span className="font-bold text-cocoa">الإجمالي</span><span className="font-extrabold text-rose">{egp(total)}</span></div>
+            <div className="border-t border-pink/40 pt-2.5 mt-1 flex justify-between text-lg"><span className="font-bold text-cocoa">الإجمالي</span><span className="font-extrabold text-rose">{egp(grandTotal)}</span></div>
             {err && <p className="text-danger text-sm font-semibold text-center bg-danger/10 rounded-xl py-2 mt-1">{err}</p>}
             <button onClick={place} disabled={busy} className="btn-primary w-full py-3.5 mt-1">{busy ? 'جاري الإرسال…' : 'تأكيد الطلب'}</button>
             {info?.store_whatsapp && (
               <a
-                href={waLink(info.store_whatsapp, orderMessage(info.store_name ?? 'Loly Store', lines.map((l) => ({ name: l.p.name, qty: l.qty, lineTotal: l.unit * l.qty })), total, { name, phone, address })) ?? '#'}
+                href={waLink(info.store_whatsapp, orderMessage(info.store_name ?? 'Loly Store', lines.map((l) => ({ name: l.p.name, qty: l.qty, lineTotal: l.unit * l.qty })), grandTotal, { name, phone, address }, { couponCode: appliedCode, couponDiscount, shipping })) ?? '#'}
                 target="_blank" rel="noreferrer"
                 className="btn w-full bg-[#25D366] text-white hover:brightness-95"
               >

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Plus, Store, Tags, Loader2, ShieldAlert, KeyRound, Globe, Copy, ExternalLink, Sparkles, Percent, Trash2 } from 'lucide-react'
+import { Plus, Store, Tags, Loader2, ShieldAlert, KeyRound, Globe, Copy, ExternalLink, Sparkles, Percent, Trash2, Ticket } from 'lucide-react'
 import { db } from '@/lib/db'
 import { supabase } from '@/lib/supabase'
 import { money, num } from '@/lib/format'
@@ -8,10 +8,10 @@ import { cn } from '@/lib/cn'
 import { uuid } from '@/lib/ids'
 import { Field, PageHeader } from '@/components/ui'
 import { ImageUpload } from '@/components/ImageUpload'
-import { saveSettings, saveCategory, save, removeRow } from '@/data/repo'
+import { saveSettings, saveCategory, save, removeRow, saveCoupon } from '@/data/repo'
 import { useAuth } from '@/store/auth'
 import { toast } from '@/store/ui'
-import type { Category, Discount, Settings as SettingsT } from '@/lib/types'
+import type { Category, Discount, Coupon, Settings as SettingsT } from '@/lib/types'
 
 export default function Settings() {
   const { isAdmin } = useAuth()
@@ -32,6 +32,7 @@ export default function Settings() {
       <StoreForm settings={settings} />
       <StoreIdentity settings={settings} />
       <DiscountsManager />
+      <CouponsManager />
       <div className="grid lg:grid-cols-2 gap-5 items-start">
         <StoreSection settings={settings} />
         <CategoriesManager />
@@ -251,6 +252,84 @@ function DiscountsManager() {
               </div>
               <button onClick={() => toggle(d)} className={cn('chip border', d.is_active ? 'bg-ok/10 text-ok border-ok/20' : 'bg-blush text-cocoa-light border-pink')}>{d.is_active ? 'فعّال' : 'موقوف'}</button>
               <button onClick={() => remove(d)} className="text-cocoa-light hover:text-danger" title="حذف"><Trash2 size={16} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CouponsManager() {
+  const coupons = (useLiveQuery(() => db.coupons.toArray(), []) ?? []) as Coupon[]
+  const [adding, setAdding] = useState(false)
+  const [code, setCode] = useState('')
+  const [type, setType] = useState<'percent' | 'amount'>('percent')
+  const [value, setValue] = useState(0)
+  const [minOrder, setMinOrder] = useState(0)
+  const [maxDiscount, setMaxDiscount] = useState(0)
+  const [maxUses, setMaxUses] = useState(0)
+
+  function resetForm() { setCode(''); setType('percent'); setValue(0); setMinOrder(0); setMaxDiscount(0); setMaxUses(0) }
+
+  async function add() {
+    const c = code.trim().toUpperCase()
+    if (!c) return toast('اكتب كود الكوبون', 'error')
+    if (value <= 0) return toast('اكتب قيمة الخصم', 'error')
+    if (coupons.some((x) => x.code.toUpperCase() === c)) return toast('الكود موجود قبل كده', 'error')
+    await saveCoupon({
+      code: c, type, value: Number(value),
+      min_order: Number(minOrder) || 0,
+      max_discount: type === 'percent' && maxDiscount > 0 ? Number(maxDiscount) : null,
+      max_uses: maxUses > 0 ? Math.floor(maxUses) : null,
+    })
+    toast('تمت إضافة الكوبون 🎟️')
+    resetForm(); setAdding(false)
+  }
+  async function toggle(c: Coupon) { await saveCoupon({ ...c, is_active: !c.is_active }) }
+  async function remove(c: Coupon) { if (window.confirm('حذف الكوبون؟')) await removeRow('coupons', c.id) }
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2 text-cocoa"><Ticket size={18} className="text-rose" /><h2 className="font-bold">أكواد الخصم (كوبونات)</h2><span className="text-xs text-cocoa-light">— يكتبها العميل عند الشراء</span></div>
+        <button onClick={() => setAdding((a) => !a)} className="btn-primary text-sm py-2"><Plus size={16} /> كوبون جديد</button>
+      </div>
+
+      {adding && (
+        <div className="rounded-2xl bg-blush/40 p-4 mb-4 space-y-3">
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Field label="الكود"><input className="input uppercase" dir="ltr" value={code} onChange={(e) => setCode(e.target.value)} placeholder="LOLY10" /></Field>
+            <Field label="نوع الخصم">
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setType('percent')} className={cn('flex-1 rounded-xl border-2 py-2 text-sm font-bold', type === 'percent' ? 'border-rose bg-rose/5 text-rose' : 'border-pink text-cocoa-light')}>نسبة %</button>
+                <button type="button" onClick={() => setType('amount')} className={cn('flex-1 rounded-xl border-2 py-2 text-sm font-bold', type === 'amount' ? 'border-rose bg-rose/5 text-rose' : 'border-pink text-cocoa-light')}>مبلغ ثابت</button>
+              </div>
+            </Field>
+            <Field label={type === 'percent' ? 'النسبة %' : 'المبلغ (ج.م)'}><input className="input" type="number" inputMode="decimal" value={value || ''} onChange={(e) => setValue(+e.target.value || 0)} /></Field>
+            <Field label="الحد الأدنى للطلب (ج.م)"><input className="input" type="number" inputMode="decimal" value={minOrder || ''} onChange={(e) => setMinOrder(+e.target.value || 0)} placeholder="0 = بدون حد" /></Field>
+            {type === 'percent' && <Field label="أقصى خصم (ج.م) — اختياري"><input className="input" type="number" inputMode="decimal" value={maxDiscount || ''} onChange={(e) => setMaxDiscount(+e.target.value || 0)} placeholder="بدون حد" /></Field>}
+            <Field label="عدد مرات الاستخدام — اختياري"><input className="input" type="number" inputMode="numeric" value={maxUses || ''} onChange={(e) => setMaxUses(+e.target.value || 0)} placeholder="بدون حد" /></Field>
+          </div>
+          <div className="flex justify-end gap-2"><button onClick={() => { resetForm(); setAdding(false) }} className="btn-ghost text-sm">إلغاء</button><button onClick={add} className="btn-primary text-sm">إضافة الكوبون</button></div>
+        </div>
+      )}
+
+      {coupons.length === 0 ? (
+        <p className="text-sm text-cocoa-light text-center py-4">مفيش كوبونات لسه. اعمل كود خصم والعميل يكتبه عند الشراء 🎟️</p>
+      ) : (
+        <div className="space-y-2">
+          {coupons.map((c) => (
+            <div key={c.id} className="flex items-center gap-3 rounded-2xl border border-pink/40 p-3">
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-cocoa truncate" dir="ltr">{c.code} <span className="chip bg-rose/10 text-rose mr-1">{c.type === 'percent' ? `${num(c.value)}%${c.max_discount ? ` (حتى ${money(c.max_discount)})` : ''}` : money(c.value)}</span></p>
+                <p className="text-xs text-cocoa-light">
+                  {c.min_order > 0 ? `حد أدنى ${money(c.min_order)} · ` : ''}
+                  استُخدم {num(c.used_count)}{c.max_uses ? ` / ${num(c.max_uses)}` : ''} مرة
+                </p>
+              </div>
+              <button onClick={() => toggle(c)} className={cn('chip border', c.is_active ? 'bg-ok/10 text-ok border-ok/20' : 'bg-blush text-cocoa-light border-pink')}>{c.is_active ? 'فعّال' : 'موقوف'}</button>
+              <button onClick={() => remove(c)} className="text-cocoa-light hover:text-danger" title="حذف"><Trash2 size={16} /></button>
             </div>
           ))}
         </div>

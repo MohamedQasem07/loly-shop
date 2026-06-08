@@ -145,7 +145,11 @@ function OrderCard({ order, items, userId, storeName }: {
           <li key={it.id} className="flex justify-between py-1.5"><span className="text-cocoa">{it.product_name} × {num(it.qty)}</span><span className="text-cocoa-light">{money(it.unit_price * it.qty)}</span></li>
         ))}
       </ul>
-      <div className="text-xs text-cocoa-light mt-1">الشحن: {order.shipping > 0 ? money(order.shipping) : 'مجاني'}{order.discount > 0 ? ` · خصم: ${money(order.discount)}` : ''}</div>
+      <div className="text-xs text-cocoa-light mt-1">
+        الشحن: {order.shipping > 0 ? money(order.shipping) : 'مجاني'}
+        {order.discount > 0 ? ` · خصم عروض: ${money(order.discount)}` : ''}
+        {order.coupon_code ? ` · كوبون ${order.coupon_code}: ${money(order.coupon_discount)}` : ''}
+      </div>
 
       <OrderSteps status={order.status} />
 
