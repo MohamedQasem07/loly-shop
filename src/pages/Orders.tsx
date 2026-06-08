@@ -95,7 +95,7 @@ function OrderSteps({ status }: { status: OrderStatus }) {
 
 function OrderCard({ order, items, userId, storeName }: {
   order: Order
-  items: { id: string; product_name: string; qty: number; unit_price: number }[]
+  items: { id: string; product_name: string; qty: number; unit_price: number; variant?: string | null }[]
   userId: string | null
   storeName: string
 }) {
@@ -142,7 +142,7 @@ function OrderCard({ order, items, userId, storeName }: {
 
       <ul className="mt-2 text-sm divide-y divide-pink/30">
         {items.map((it) => (
-          <li key={it.id} className="flex justify-between py-1.5"><span className="text-cocoa">{it.product_name} × {num(it.qty)}</span><span className="text-cocoa-light">{money(it.unit_price * it.qty)}</span></li>
+          <li key={it.id} className="flex justify-between py-1.5"><span className="text-cocoa">{it.product_name} × {num(it.qty)}{it.variant ? <span className="text-rose font-semibold"> · {it.variant}</span> : null}</span><span className="text-cocoa-light">{money(it.unit_price * it.qty)}</span></li>
         ))}
       </ul>
       <div className="text-xs text-cocoa-light mt-1">

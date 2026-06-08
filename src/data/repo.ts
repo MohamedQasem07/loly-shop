@@ -62,6 +62,8 @@ export interface ProductInput {
   stock_qty?: number
   low_stock_threshold?: number
   color?: string | null
+  colors?: string[]
+  sizes?: string[]
   supplier_id?: string | null
   is_active?: boolean
   notes?: string | null
@@ -84,6 +86,8 @@ export async function saveProduct(input: ProductInput): Promise<Product> {
     stock_qty: existing ? existing.stock_qty : Number(input.stock_qty) || 0,
     low_stock_threshold: Number(input.low_stock_threshold) || 0,
     color: input.color ?? null,
+    colors: input.colors ?? existing?.colors ?? [],
+    sizes: input.sizes ?? existing?.sizes ?? [],
     supplier_id: input.supplier_id ?? null,
     is_active: input.is_active ?? true,
     notes: input.notes ?? null,

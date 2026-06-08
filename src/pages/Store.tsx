@@ -10,7 +10,7 @@ import { cn } from '@/lib/cn'
 import { LOGO_URL } from '@/lib/assets'
 import { toast } from '@/store/ui'
 
-interface SP { id: string; name: string; category_id: string | null; image_url: string | null; color: string | null; price: number; stock_qty: number; created_at?: string; images?: string[] }
+interface SP { id: string; name: string; category_id: string | null; image_url: string | null; color: string | null; price: number; stock_qty: number; created_at?: string; images?: string[]; colors?: string[]; sizes?: string[] }
 interface SC { id: string; name: string; name_ar: string | null; sort_order: number }
 interface SD { id: string; type: string; value: number; scope: string; category_id: string | null; product_id: string | null }
 interface SZ { governorate: string; fee: number; sort_order: number }
@@ -70,6 +70,8 @@ export default function Store() {
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('all')
   const [cart, setCart] = useState<Record<string, number>>({})
+  const [variants, setVariants] = useState<Record<string, string>>({})
+  const setVariant = (id: string, v: string) => setVariants((m) => ({ ...m, [id]: v }))
   const [view, setView] = useState<'shop' | 'product' | 'checkout' | 'done' | 'track'>('shop')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [doneNo, setDoneNo] = useState('')
@@ -136,8 +138,8 @@ export default function Store() {
   )
 
   const cartLines = useMemo(
-    () => Object.entries(cart).map(([id, qty]) => ({ p: products.find((x) => x.id === id)!, qty })).filter((l) => l.p),
-    [cart, products],
+    () => Object.entries(cart).map(([id, qty]) => ({ p: products.find((x) => x.id === id)!, qty, variant: variants[id] ?? null })).filter((l) => l.p),
+    [cart, products, variants],
   )
   const subtotalFull = cartLines.reduce((s, l) => s + l.p.price * l.qty, 0)
   const subtotalDisc = cartLines.reduce((s, l) => s + priceOf(l.p) * l.qty, 0)
@@ -212,7 +214,7 @@ export default function Store() {
             key={selected.id} p={selected} info={info} catName={catName(selected.category_id)}
             unit={priceOf(selected)} inCart={cart[selected.id] ?? 0}
             related={products.filter((x) => x.id !== selected.id).sort((a, b) => (b.category_id === selected.category_id ? 1 : 0) - (a.category_id === selected.category_id ? 1 : 0)).slice(0, 8)}
-            priceOf={priceOf} ratings={ratings}
+            priceOf={priceOf} ratings={ratings} setVariant={setVariant}
             onAdd={add} onBuy={buyNow} onOpen={openProduct} onBack={() => setView('shop')}
           />
         )}
@@ -224,7 +226,7 @@ export default function Store() {
             subtotal={subtotalDisc} discount={discountTotal} zones={zones}
             info={info}
             onBack={() => setView('shop')}
-            onPlaced={(no) => { setDoneNo(no); setCart({}); setView('done') }}
+            onPlaced={(no) => { setDoneNo(no); setCart({}); setVariants({}); setView('done') }}
           />
         )}
 
@@ -336,6 +338,7 @@ function ProductCard({ p, unit, inCart, rating, onOpen, onAdd }: { p: SP; unit: 
   const hasDisc = unit < p.price
   const off = hasDisc ? Math.round((1 - unit / p.price) * 100) : 0
   const out = p.stock_qty <= 0
+  const hasVariants = (p.colors?.length ?? 0) > 0 || (p.sizes?.length ?? 0) > 0
   return (
     <div onClick={onOpen} className="card p-2.5 sm:p-3 flex flex-col text-right cursor-pointer group hover:shadow-lift hover:-translate-y-1 transition-all">
       <div className="aspect-square rounded-2xl bg-blush mb-2.5 overflow-hidden grid place-items-center text-rose/40 relative">
@@ -352,11 +355,11 @@ function ProductCard({ p, unit, inCart, rating, onOpen, onAdd }: { p: SP; unit: 
         {hasDisc && <span className="text-[11px] text-cocoa-light line-through">{egp(p.price)}</span>}
       </div>
       <button
-        onClick={(e) => { e.stopPropagation(); onAdd() }}
+        onClick={(e) => { e.stopPropagation(); if (hasVariants) onOpen(); else onAdd() }}
         disabled={out}
         className={cn('btn-primary w-full mt-2.5 py-2 text-sm', out && 'opacity-50')}
       >
-        {out ? 'غير متاح' : inCart ? `في السلة (${inCart})` : 'أضف للسلة'}
+        {out ? 'غير متاح' : hasVariants ? 'اختاري' : inCart ? `في السلة (${inCart})` : 'أضف للسلة'}
       </button>
     </div>
   )
@@ -382,15 +385,24 @@ function ProductRow({ title, items, priceOf, ratings, onOpen, onAdd, cart }: {
 
 /* ───────────────────────── Product detail ───────────────────────── */
 
-function ProductDetail({ p, info, catName, unit, inCart, related, priceOf, ratings, onAdd, onBuy, onOpen, onBack }: {
+function ProductDetail({ p, info, catName, unit, inCart, related, priceOf, ratings, setVariant, onAdd, onBuy, onOpen, onBack }: {
   p: SP; info: SInfo | null; catName: string | null
   unit: number; inCart: number
   related: SP[]; priceOf: (p: SP) => number; ratings: Record<string, SRating>
+  setVariant: (id: string, v: string) => void
   onAdd: (id: string, n: number) => void; onBuy: (id: string, n: number) => void
   onOpen: (id: string) => void; onBack: () => void
 }) {
   const rating = ratings[p.id]
   const [qty, setQty] = useState(1)
+  const colors = p.colors ?? []
+  const sizes = p.sizes ?? []
+  const [selColor, setSelColor] = useState(colors.length === 1 ? colors[0] : '')
+  const [selSize, setSelSize] = useState(sizes.length === 1 ? sizes[0] : '')
+  const variantStr = [selColor, selSize].filter(Boolean).join(' / ')
+  const variantMissing = (colors.length > 0 && !selColor) || (sizes.length > 0 && !selSize)
+  const doAdd = () => { setVariant(p.id, variantStr); onAdd(p.id, qty) }
+  const doBuy = () => { setVariant(p.id, variantStr); onBuy(p.id, qty) }
   const gallery = [p.image_url, ...(p.images ?? [])].filter(Boolean) as string[]
   const [mainImg, setMainImg] = useState(gallery[0] ?? '')
   const hasDisc = unit < p.price
@@ -453,13 +465,37 @@ function ProductDetail({ p, info, catName, unit, inCart, related, priceOf, ratin
             {out ? <span className="chip bg-danger/10 text-danger">نفد المخزون</span>
               : low ? <span className="chip bg-warn/15 text-warn">باقي {p.stock_qty} قطع بس!</span>
                 : <span className="chip bg-ok/15 text-ok"><CheckCircle2 size={12} /> متوفر</span>}
-            {p.color && (
+            {p.color && colors.length === 0 && (
               <span className="inline-flex items-center gap-1.5 text-sm text-cocoa-light">
                 <span className="w-4 h-4 rounded-full border border-pink shadow-sm" style={{ background: cssColor(p.color) }} />
                 اللون: <span className="font-semibold text-cocoa">{p.color}</span>
               </span>
             )}
           </div>
+
+          {/* Variant options */}
+          {colors.length > 0 && (
+            <div className="mt-4">
+              <span className="label">اللون {!selColor && <span className="text-rose">— اختاري</span>}</span>
+              <div className="flex flex-wrap gap-2">
+                {colors.map((c) => (
+                  <button key={c} type="button" onClick={() => setSelColor(c)} className={cn('inline-flex items-center gap-1.5 rounded-full border-2 px-3 py-1.5 text-sm font-bold transition', selColor === c ? 'border-rose bg-rose/5 text-rose' : 'border-pink text-cocoa-light hover:border-rose/40')}>
+                    <span className="w-4 h-4 rounded-full border border-pink/60" style={{ background: cssColor(c) }} /> {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {sizes.length > 0 && (
+            <div className="mt-3">
+              <span className="label">المقاس {!selSize && <span className="text-rose">— اختاري</span>}</span>
+              <div className="flex flex-wrap gap-2">
+                {sizes.map((s) => (
+                  <button key={s} type="button" onClick={() => setSelSize(s)} className={cn('rounded-xl border-2 px-3.5 py-1.5 text-sm font-bold min-w-[2.75rem] transition', selSize === s ? 'border-rose bg-rose/5 text-rose' : 'border-pink text-cocoa-light hover:border-rose/40')}>{s}</button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Quantity + actions */}
           <div className="flex items-center gap-3 mt-5">
@@ -473,17 +509,18 @@ function ProductDetail({ p, info, catName, unit, inCart, related, priceOf, ratin
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
-            <button onClick={() => onAdd(p.id, qty)} disabled={out} className={cn('btn-ghost py-3.5 text-base border-2 border-rose text-rose hover:bg-rose/5', out && 'opacity-50')}>
+            <button onClick={doAdd} disabled={out || variantMissing} className={cn('btn-ghost py-3.5 text-base border-2 border-rose text-rose hover:bg-rose/5', (out || variantMissing) && 'opacity-50')}>
               <ShoppingCart size={18} /> أضف إلى السلة
             </button>
-            <button onClick={() => onBuy(p.id, qty)} disabled={out} className={cn('btn-primary py-3.5 text-base', out && 'opacity-50')}>
+            <button onClick={doBuy} disabled={out || variantMissing} className={cn('btn-primary py-3.5 text-base', (out || variantMissing) && 'opacity-50')}>
               اشتري الآن
             </button>
           </div>
+          {variantMissing && <p className="text-xs text-rose font-semibold mt-2 text-center">اختاري {colors.length > 0 && !selColor ? 'اللون' : ''}{colors.length > 0 && !selColor && sizes.length > 0 && !selSize ? ' و' : ''}{sizes.length > 0 && !selSize ? 'المقاس' : ''} قبل الإضافة</p>}
 
           {info?.store_whatsapp && (
             <a
-              href={waLink(info.store_whatsapp, orderMessage(info.store_name ?? 'Loly Store', [{ name: p.name, qty, lineTotal: unit * qty }], unit * qty)) ?? '#'}
+              href={waLink(info.store_whatsapp, orderMessage(info.store_name ?? 'Loly Store', [{ name: p.name + (variantStr ? ` — ${variantStr}` : ''), qty, lineTotal: unit * qty }], unit * qty)) ?? '#'}
               target="_blank" rel="noreferrer"
               className={cn('btn w-full mt-3 bg-[#25D366] text-white hover:brightness-95', out && 'opacity-50 pointer-events-none')}
             >
@@ -635,7 +672,7 @@ function ProductReviews({ productId, rating }: { productId: string; rating?: SRa
 /* ───────────────────────── Checkout ───────────────────────── */
 
 function Checkout({ lines, add, dec, remove, subtotal, discount, zones, info, onBack, onPlaced }: {
-  lines: { p: SP; qty: number; unit: number }[]
+  lines: { p: SP; qty: number; unit: number; variant: string | null }[]
   add: (id: string) => void
   dec: (id: string) => void
   remove: (id: string) => void
@@ -745,7 +782,7 @@ function Checkout({ lines, add, dec, remove, subtotal, discount, zones, info, on
       })
       if (e1) throw e1
       const { error: e2 } = await supabase.from('order_items').insert(
-        lines.map((l) => ({ id: uuid(), order_id: orderId, product_id: l.p.id, product_name: l.p.name, qty: l.qty, unit_price: l.unit, line_total: +(l.unit * l.qty).toFixed(2) })),
+        lines.map((l) => ({ id: uuid(), order_id: orderId, product_id: l.p.id, product_name: l.p.name, qty: l.qty, unit_price: l.unit, line_total: +(l.unit * l.qty).toFixed(2), variant: l.variant })),
       )
       if (e2) throw e2
       // mark the coupon used (best effort — tied to this order, idempotent server-side)
@@ -776,6 +813,7 @@ function Checkout({ lines, add, dec, remove, subtotal, discount, zones, info, on
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-sm text-cocoa truncate">{l.p.name}</p>
+                  {l.variant && <p className="text-[11px] text-rose font-semibold">{l.variant}</p>}
                   <p className="text-xs text-cocoa-light mt-0.5">{egp(l.unit)} للقطعة</p>
                   <div className="flex items-center gap-1.5 mt-1.5">
                     <button onClick={() => dec(l.p.id)} className="w-7 h-7 rounded-full bg-blush grid place-items-center text-rose"><Minus size={13} /></button>
@@ -867,7 +905,7 @@ function Checkout({ lines, add, dec, remove, subtotal, discount, zones, info, on
             <button onClick={place} disabled={busy} className="btn-primary w-full py-3.5 mt-1">{busy ? 'جاري الإرسال…' : 'تأكيد الطلب'}</button>
             {info?.store_whatsapp && (
               <a
-                href={waLink(info.store_whatsapp, orderMessage(info.store_name ?? 'Loly Store', lines.map((l) => ({ name: l.p.name, qty: l.qty, lineTotal: l.unit * l.qty })), grandTotal, { name, phone, address }, { couponCode: appliedCode, couponDiscount, shipping })) ?? '#'}
+                href={waLink(info.store_whatsapp, orderMessage(info.store_name ?? 'Loly Store', lines.map((l) => ({ name: l.p.name + (l.variant ? ` — ${l.variant}` : ''), qty: l.qty, lineTotal: l.unit * l.qty })), grandTotal, { name, phone, address }, { couponCode: appliedCode, couponDiscount, shipping })) ?? '#'}
                 target="_blank" rel="noreferrer"
                 className="btn w-full bg-[#25D366] text-white hover:brightness-95"
               >

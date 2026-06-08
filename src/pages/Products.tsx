@@ -180,6 +180,8 @@ function ProductModal({ product, onClose }: { product: Product | null; onClose: 
   })
   const [busy, setBusy] = useState(false)
   const [newImage, setNewImage] = useState('')
+  const [colorsStr, setColorsStr] = useState((product?.colors ?? []).join('، '))
+  const [sizesStr, setSizesStr] = useState((product?.sizes ?? []).join('، '))
 
   const set = (patch: Partial<ProductInput>) => setForm((f) => ({ ...f, ...patch }))
   const gallery = form.images ?? []
@@ -190,7 +192,9 @@ function ProductModal({ product, onClose }: { product: Product | null; onClose: 
     if (!form.name.trim()) return toast('اكتب اسم المنتج', 'error')
     setBusy(true)
     try {
-      await saveProduct({ ...form, name: form.name.trim() })
+      const colors = colorsStr.split(/[،,]/).map((s) => s.trim()).filter(Boolean)
+      const sizes = sizesStr.split(/[،,]/).map((s) => s.trim()).filter(Boolean)
+      await saveProduct({ ...form, name: form.name.trim(), colors, sizes })
       toast(isNew ? 'تمت إضافة المنتج 🌸' : 'تم حفظ التعديلات')
       onClose()
     } catch {
@@ -289,6 +293,12 @@ function ProductModal({ product, onClose }: { product: Product | null; onClose: 
           <ImageUpload value={newImage} onChange={setNewImage} folder="products" hint="ارفع صورة (أو الصق رابط) ثم اضغط «أضف للمعرض»" />
           {newImage.trim() && <button type="button" onClick={addImage} className="btn-ghost text-sm py-2 mt-2"><Plus size={15} /> أضف للمعرض</button>}
         </div>
+        <Field label="الألوان المتاحة (للمتجر)" hint="افصلي بين كل لون بفاصلة">
+          <input className="input" value={colorsStr} onChange={(e) => setColorsStr(e.target.value)} placeholder="أحمر، أزرق، ذهبي" />
+        </Field>
+        <Field label="المقاسات المتاحة (للمتجر)" hint="افصلي بين كل مقاس بفاصلة">
+          <input className="input" dir="ltr" value={sizesStr} onChange={(e) => setSizesStr(e.target.value)} placeholder="S, M, L" />
+        </Field>
         <div className="sm:col-span-2">
           <Field label="ملاحظات">
             <textarea className="input min-h-[70px]" value={form.notes ?? ''} onChange={(e) => set({ notes: e.target.value })} />

@@ -119,6 +119,8 @@ export interface Product {
   stock_qty: number
   low_stock_threshold: number
   color: string | null
+  colors: string[]
+  sizes: string[]
   supplier_id: string | null
   is_active: boolean
   notes: string | null
@@ -322,6 +324,7 @@ export interface OrderItem {
   qty: number
   unit_price: number
   line_total: number
+  variant: string | null
 }
 
 export type DiscountScope = 'all' | 'category' | 'product'
