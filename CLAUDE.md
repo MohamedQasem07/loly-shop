@@ -21,17 +21,22 @@ npm run lint     # فحص TypeScript (tsc --noEmit)
 products, categories, suppliers, customers, payment_methods, expense_categories,
 sales, sale_items, sale_payments, purchases, purchase_items, returns, return_items,
 stock_movements, treasury_movements, cash_sessions, expenses, settings, profiles, audit_logs,
-accounts, journal_entries, journal_lines, **orders, order_items, discounts**.
+accounts, journal_entries, journal_lines, orders, order_items, discounts,
+**coupons, shipping_zones, reviews**.
 - المخزون الحالي = `products.stock_qty` (cached) + سجل كامل في `stock_movements`.
 - التقارير بتتحسب من الحركات والفواتير، مش من أرقام يدوية.
-- **`settings`** فيه أعمدة المتجر: `store_open, shipping_fee, store_whatsapp` + أعمدة الهوية `store_cover_url, store_about, store_instagram, store_facebook, store_tiktok, store_hours`.
-- **`products`** فيه `online` (boolean) + `online_price` للمتجر الأونلاين.
+- **`settings`** فيه أعمدة المتجر: `store_open, shipping_fee, store_whatsapp` + الهوية `store_cover_url, store_about, store_instagram, store_facebook, store_tiktok, store_hours` + الولاء `loyalty_enabled, loyalty_earn_egp, loyalty_point_value, loyalty_min_redeem` (متوقّف افتراضياً).
+- **`products`** فيه `online`+`online_price` (المتجر) و`images text[]` (معرض صور إضافي، الغلاف في `image_url`) و`colors text[]`+`sizes text[]` (خيارات الأونلاين).
+- **`customers.points`** (رصيد نقاط الولاء). **`orders`** فيه `coupon_code, coupon_discount, points_used, governorate`. **`order_items.variant`** (اللون/المقاس المختار أونلاين — مش بيتنقل لـ sale_items).
+- **`coupons`** (كود/نسبة-أو-مبلغ/حد أدنى/سقف/عدد استخدام). **`shipping_zones`** (محافظة → سعر). **`reviews`** (تقييم بمراجعة `is_approved`).
 
 ## المتجر الأونلاين والحماية للزائر (anon)
 - صفحة عامة `#/store` ([Store.tsx](src/pages/Store.tsx)) — الزائر مش بيسجّل دخول.
-- **Views للزائر** (security_invoker + column-grants، التكلفة/الربح متخفيين): `store_products`, `store_categories`, `store_discounts`, `store_info`.
-- **الأوردرات**: anon عنده INSERT-only على `orders`/`order_items` (RLS: status='new', sale_id null, paid=false)، والإدراج بـ `return=minimal` (anon ميقدرش يقرا الأوردرات تاني). تتبّع الطلب عبر دالة `track_order(p_order_no, p_phone)` SECURITY DEFINER (anon-callable، بترجع طلب واحد بس لو الرقم+الموبايل متطابقين).
-- **صور المنتجات**: Storage bucket عام `product-images` (رفع للـ authenticated بس، قراءة للكل) — `ImageUpload` ([components/ImageUpload.tsx](src/components/ImageUpload.tsx)) بيرفع ويرجّع الـ public URL في `image_url`.
+- **Views للزائر** (كلها **security_invoker** + column-grants، التكلفة/الربح متخفيين): `store_products` (فيها كمان created_at/images/colors/sizes), `store_categories`, `store_discounts`, `store_info` (فيها loyalty_enabled/point_value/min_redeem), `store_shipping`, `store_reviews` (المعتمد بس), `store_product_ratings` (متوسط+عدد). ⚠️ **لو ضفت عمود لأي view لازم تـ`grant select (col)` للـ anon على الجدول الأصلي** — نسيانها بيرجّع 401 للزائر (حصل وانصلح في mig 17).
+- **دوال anon (SECURITY DEFINER, search_path=public)**: `track_order`, `validate_coupon(code,subtotal)` + `redeem_coupon(order_no)` (idempotent، مربوط بالأوردر), `customer_points(phone)` (phone-gated), `store_bestsellers(limit)` (ترتيب بس).
+- **الأوردرات**: anon INSERT-only على `orders`/`order_items` (RLS: status='new', sale_id null, paid=false, coupon_redeemed=false). منح الإدراج عملياً على مستوى الجدول فالأعمدة الجديدة بتنضم تلقائياً (بس لازم grant صريح للـ select/update). الكوبون/النقاط بتتحقّق وقت الـ checkout، والنقاط بتتخصم وقت تحويل الأوردر لفاتورة (`convertOrderToSale`).
+- **التقييمات**: anon بيبعت تقييم **pending** (`is_approved=false`، مش بيقدر يعمله true)، المالك بيراجع في صفحة `Reviews`.
+- **صور المنتجات**: Storage bucket عام `product-images` (رفع authenticated، قراءة للكل) — `ImageUpload` ([components/ImageUpload.tsx](src/components/ImageUpload.tsx)) بيرفع ويرجّع الـ public URL.
 
 ## الحماية والصلاحيات
 - RLS على كل الجداول. الموظف النشط بيكتب، الأدمن (owner/manager) بس يمسح، `audit_logs` append-only. دوال `is_admin`/`is_staff` في schema اسمها `private` (مش ظاهرة في الـ API).
@@ -54,18 +59,22 @@ src/
   components/ Layout, Toaster, ImageUpload, ui (Modal/Field/PageHeader/Empty/Spinner)
   pages/    Login, Dashboard, POS, Products, Purchases, StockMovements, Suppliers,
             Customers, Expenses, Treasury, Reports, Returns, Accounting, Orders,
-            Users, Settings, Store (المتجر العام), Placeholder
+            Reviews, Users, Settings, Store (المتجر العام), Placeholder
 ```
-- **التخطيط (ويب أساسي):** `Layout.tsx` بيملا عرض اللاب توب (`max-w-[1760px]`)، والـ Modal بقى أوسع، والصفحات بتستغل العرض. الموبايل شغّال برضه.
+- **التخطيط (ويب أساسي):** `Layout.tsx` بيملا عرض اللاب توب (`max-w-[1760px]`)، والـ Modal أوسع، والصفحات بتستغل العرض. الموبايل شغّال برضه.
+- **Code-splitting:** كل الصفحات `lazy()` في `App.tsx` (كل صفحة chunk لوحدها) + vendor chunks في `vite.config` (react/supabase/dexie/icons). المتجر للزائر بقى ~140kB gzip بدل 313kB. الـ Suspense fallback جوه `Layout` حوالين `<Outlet/>`.
+- **إدارة المتجر في `Settings.tsx`:** DiscountsManager + CouponsManager + LoyaltyManager + ShippingZonesManager (كلها بتزامن محلي). والمنتج فيه غلاف + معرض + ألوان/مقاسات.
 
 ## الحالة
 - **كل الموديولات مكتملة و`npm run build` بيعدّي**: الباك-إند، الدخول، Dashboard، المنتجات، POS (بيع/دفع مقسّم/طباعة إيصال)، استلام البضاعة (متوسط تكلفة مرجّح)، الموردين، العملاء، المصاريف، الخزينة (أرصدة + جلسة كاشير)، التقارير (مبيعات/أرباح/مخزون/طرق دفع/أفضل المنتجات + فلتر فترة)، حركات المخزون، المرتجعات، المستخدمين والصلاحيات، الإعدادات (+ تغيير كلمة المرور).
 - **المحاسبة (قيد مزدوج) مكتملة ومتأكد منها**: شجرة حسابات (35 حساب)، ترحيل قيد متوازن تلقائي لكل عملية (`src/data/accounting.ts`)، جرد مستمر + متوسط مرجّح في الـ GL، وصفحة `Accounting` فيها ميزان المراجعة/قائمة الدخل/الميزانية/دفتر الأستاذ/شجرة الحسابات + عمليات (رأس مال/مسحوبات/تحويل/سداد مورد/تحصيل عميل). مفيش ضريبة (0%).
 - **منشور أونلاين**: https://mohamedqasem07.github.io/loly-shop/ (GitHub Pages عبر Actions؛ `git push` على main = نشر تلقائي). التطبيق بيستخدم **HashRouter** و`base` من `VITE_BASE` للنشر.
 - **POS كاشير حقيقي مكتمل**: باركود/Enter للإضافة، بحث فوري، كمية قابلة للكتابة، آخر الفواتير (طباعة/مرتجع/إلغاء).
-- **التجارة الإلكترونية مكتملة ومتأكد منها (سبرنتات 2026-06-08)**: متجر عام احترافي (صفحة منتج كاملة + منتجات متعلقة + سلة + checkout بعمودين)، **رفع صور المنتجات** (Storage)، **هوية المتجر** (غلاف/نبذة/سوشيال/مواعيد + فوتر)، **الطلب عبر واتساب** + **تتبّع الطلب** (RPC آمن)، **شغل الأوردرات** (مراحل + تبليغ واتساب للعميل لكل مرحلة + تحويل لفاتورة)، **CRM للعميل** (تاريخ شراء + LTV + VIP + واتساب)، **إدارة العروض/الخصومات** + شيپ «🔥 عروض».
-- **اتأكد فعلياً**: إنشاء منتج، بيع POS (نقص مخزون + خزينة + حركات + **قيد محاسبي متوازن**)، مصروف، رفع صورة لـ Storage، تتبّع طلب، وإنشاء خصم يظهر للزائر — كلهم صح على Supabase.
-- **الباقي (سبرنتات جاية — مرتّبة):** (1) أكواد كوبون عند الشراء (محتاج جدول coupons + دالة validate للـ anon). (2) نقاط ولاء/مكافآت للعملاء. (3) شحن حسب المحافظة (قيمة لكل منطقة). (4) ألوان/مقاسات للمنتج (variants). (5) أكتر من صورة للمنتج (عمود `images` + تعديل المعرض). (6) تقييمات المنتجات. (7) أقسام «وصل حديثاً/الأكثر مبيعاً» في المتجر (الأحدث محتاج `created_at` في `store_products`). (8) تقسيم الـ bundle (تحذير 1.1MB) لتسريع التحميل.
+- **التجارة الإلكترونية مكتملة بالكامل**: متجر احترافي (صفحة منتج + معرض صور + متعلقة + سلة + checkout)، رفع صور، هوية المتجر، الطلب/التتبّع واتساب، شغل الأوردرات (مراحل + تبليغ + تحويل لفاتورة)، CRM، عروض/خصومات.
+- **كل الـ ٨ سبرنتات الجديدة خلصت ونزلت لايف ومتأكد منها (2026-06-08)**:
+  ٦ **كوبونات** خصم عند الشراء (`validate/redeem_coupon`) · ٧ **نقاط ولاء** قابلة للتهيئة (كسب على البيع + استبدال في POS والمتجر، متوقّفة افتراضياً) · ٨ **شحن بالمحافظة** (`shipping_zones` + dropdown) · ٩ **ألوان/مقاسات** (أونلاين، متسجّلة في الأوردر) · ١٠ **معرض صور** (`images[]`) · ١١ **تقييمات** بمراجعة (صفحة Reviews + نجوم في المتجر) · ١٢ **أقسام «وصل حديثاً/الأكثر مبيعاً»** (تظهر لو ≥٦ منتجات) · ١٣ **تقسيم الـ bundle** (lazy routes + vendor chunks).
+- **اتأكد فعلياً على Supabase**: مسار الـ anon الحقيقي بالـ REST (publishable key) لكل دالة/إدراج، استبدال نقاط في POS (خصم صح)، حلقة التقييم كاملة (إرسال→مراجعة→ظهور)، اختيار variant→سلة، شحن بالمحافظة بيغيّر الإجمالي، وكل الـ migrations نضيفة.
+- **مفيش سبرنتات باقية — الـ backlog خلص.** تحسينات اختيارية لو حبّ: كوبون verified-purchase، POS variants، شحن بالمنطقة جوه المحافظة، track_order يطلّع الـ variant.
 
 ## ملاحظة Auth (مهمة)
 التسجيل العادي **بيفشل** لأن "Confirm email" مفعّل (`mailer_autoconfirm:false`) وإرسال إيميل التأكيد بيفشل، فـ GoTrue بيرجّع رسالة مضلّلة `400: Email address ... is invalid` وبيلغي التسجيل. الكونكتور **مش** بيقدر يغيّر إعداد الـ Auth.
@@ -75,5 +84,7 @@ src/
 
 ## ملاحظات تطوير
 - النشر: `git push` على `main` = نشر تلقائي (GitHub Actions). الموقع: https://mohamedqasem07.github.io/loly-shop/
-- معاينة (preview tools): `preview_click` ما بيشغّلش `onSubmit` بتاع React — استخدم `form.requestSubmit()`. والسكرين شوت بيعلّق لو فيه Modal مفتوح (backdrop-blur) — اتأكد بـ DOM queries.
+- ⚠️ **الـ DB المباشر شغّال مع جهاز محمد التاني (device D62) في نفس الوقت** — أي أوردر/داتا تجريبية بتعملها بتتزامن لجهازه وممكن يحوّلها لفواتير حقيقية على حسابه. **متعملش أوردرات/مبيعات تجريبية على الـ DB المباشر.** للتأكيد: استخدم REST بالـ anon key واحذف فورًا، أو فحص read-only، أو set+revert لعمود منتج بسرعة. (حصل تلوث واتنظّف بالكامل + الميزان رجع صفر).
+- **معاينة (preview tools):** `preview_click` (synthetic) **مابيوصلش لـ React onClick** — استخدم `el.click()` (native) جوه `preview_eval`. للـ inputs المتحكَّم فيها React: استخدم native value-setter + `dispatchEvent(new Event('input',{bubbles:true}))` (وللـ select: event 'change'). HMR بيصفّر state المكوّنات وأنت بتعدّل. السكرين شوت بيعلّق أحياناً — اتأكد بـ DOM queries.
+- **تأكيد مسار anon الحقيقي:** preview بيشتغل بسيشن المالك (authenticated) مش anon — فاختبر RLS/grants للزائر بـ `curl` بالـ publishable key (curl على ويندوز بيخرّب UTF-8 العربي في `-d`، استخدم ASCII).
 - حساب المالك: `mohamedqasem436@gmail.com` (الباسوورد في الذاكرة الخاصة).
