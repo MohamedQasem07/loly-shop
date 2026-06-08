@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowRight, Banknote, CheckCircle2, ChevronDown, Clock, ImageOff, Lock, MapPin, Minus, Plus,
   RefreshCcw, Search, Share2, ShieldCheck, ShoppingBag, ShoppingCart, Smartphone,
-  Sparkles, Truck, MessageCircle, Phone, Tag, Ticket,
+  Sparkles, Star, Truck, MessageCircle, Phone, Tag, Ticket,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { uuid } from '@/lib/ids'
@@ -14,6 +14,8 @@ interface SP { id: string; name: string; category_id: string | null; image_url: 
 interface SC { id: string; name: string; name_ar: string | null; sort_order: number }
 interface SD { id: string; type: string; value: number; scope: string; category_id: string | null; product_id: string | null }
 interface SZ { governorate: string; fee: number; sort_order: number }
+interface SRating { product_id: string; avg_rating: number; review_count: number }
+interface SReview { id: string; product_id: string; customer_name: string; rating: number; comment: string | null; created_at: string }
 interface SInfo {
   store_name: string; logo_url: string | null; store_cover_url: string | null; store_about: string | null
   store_phone: string | null; store_whatsapp: string | null
@@ -63,6 +65,7 @@ export default function Store() {
   const [discounts, setDiscounts] = useState<SD[]>([])
   const [zones, setZones] = useState<SZ[]>([])
   const [bestSellerIds, setBestSellerIds] = useState<string[]>([])
+  const [ratings, setRatings] = useState<Record<string, SRating>>({})
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('all')
@@ -73,13 +76,14 @@ export default function Store() {
 
   useEffect(() => {
     ;(async () => {
-      const [pi, pp, pc, pd, pz, pb] = await Promise.all([
+      const [pi, pp, pc, pd, pz, pb, pr] = await Promise.all([
         supabase.from('store_info').select('*').maybeSingle(),
         supabase.from('store_products').select('*'),
         supabase.from('store_categories').select('*'),
         supabase.from('store_discounts').select('*'),
         supabase.from('store_shipping').select('*'),
         supabase.rpc('store_bestsellers', { p_limit: 12 }),
+        supabase.from('store_product_ratings').select('*'),
       ])
       setInfo((pi.data as SInfo) ?? null)
       setProducts(((pp.data as SP[]) ?? []).map((p) => ({ ...p, price: Number(p.price), stock_qty: Number(p.stock_qty) })))
@@ -87,6 +91,7 @@ export default function Store() {
       setDiscounts(((pd.data as SD[]) ?? []).map((d) => ({ ...d, value: Number(d.value) })))
       setZones(((pz.data as SZ[]) ?? []).map((z) => ({ ...z, fee: Number(z.fee), sort_order: Number(z.sort_order) })).sort((a, b) => a.sort_order - b.sort_order))
       setBestSellerIds(((pb.data as { product_id: string }[]) ?? []).map((r) => r.product_id))
+      setRatings(Object.fromEntries(((pr.data as SRating[]) ?? []).map((r) => [r.product_id, { ...r, avg_rating: Number(r.avg_rating), review_count: Number(r.review_count) }])))
       setLoading(false)
     })()
   }, [])
@@ -196,7 +201,7 @@ export default function Store() {
         {view === 'shop' && (
           <Catalog
             info={info} products={list} allCount={products.length} cats={cats} hasOffers={hasOffers}
-            newArrivals={newArrivals} bestSellers={bestSellers}
+            newArrivals={newArrivals} bestSellers={bestSellers} ratings={ratings}
             q={q} setQ={setQ} cat={cat} setCat={setCat}
             priceOf={priceOf} onOpen={openProduct} onAdd={(id) => add(id)} cart={cart}
           />
@@ -207,7 +212,7 @@ export default function Store() {
             key={selected.id} p={selected} info={info} catName={catName(selected.category_id)}
             unit={priceOf(selected)} inCart={cart[selected.id] ?? 0}
             related={products.filter((x) => x.id !== selected.id).sort((a, b) => (b.category_id === selected.category_id ? 1 : 0) - (a.category_id === selected.category_id ? 1 : 0)).slice(0, 8)}
-            priceOf={priceOf}
+            priceOf={priceOf} ratings={ratings}
             onAdd={add} onBuy={buyNow} onOpen={openProduct} onBack={() => setView('shop')}
           />
         )}
@@ -255,10 +260,10 @@ export default function Store() {
 
 /* ───────────────────────── Catalog ───────────────────────── */
 
-function Catalog({ info, products, allCount, cats, hasOffers, newArrivals, bestSellers, q, setQ, cat, setCat, priceOf, onOpen, onAdd, cart }: {
+function Catalog({ info, products, allCount, cats, hasOffers, newArrivals, bestSellers, ratings, q, setQ, cat, setCat, priceOf, onOpen, onAdd, cart }: {
   info: SInfo | null
   products: SP[]; allCount: number; cats: SC[]; hasOffers: boolean
-  newArrivals: SP[]; bestSellers: SP[]
+  newArrivals: SP[]; bestSellers: SP[]; ratings: Record<string, SRating>
   q: string; setQ: (v: string) => void; cat: string; setCat: (v: string) => void
   priceOf: (p: SP) => number; onOpen: (id: string) => void; onAdd: (id: string) => void; cart: Record<string, number>
 }) {
@@ -308,8 +313,8 @@ function Catalog({ info, products, allCount, cats, hasOffers, newArrivals, bestS
 
       {showSections && (
         <div className="space-y-6 mb-6">
-          {bestSellers.length >= 2 && <ProductRow title="الأكثر مبيعًا 🔥" items={bestSellers} priceOf={priceOf} onOpen={onOpen} onAdd={onAdd} cart={cart} />}
-          {newArrivals.length > 0 && <ProductRow title="وصل حديثًا 🆕" items={newArrivals} priceOf={priceOf} onOpen={onOpen} onAdd={onAdd} cart={cart} />}
+          {bestSellers.length >= 2 && <ProductRow title="الأكثر مبيعًا 🔥" items={bestSellers} priceOf={priceOf} ratings={ratings} onOpen={onOpen} onAdd={onAdd} cart={cart} />}
+          {newArrivals.length > 0 && <ProductRow title="وصل حديثًا 🆕" items={newArrivals} priceOf={priceOf} ratings={ratings} onOpen={onOpen} onAdd={onAdd} cart={cart} />}
           <h3 className="font-display text-lg font-extrabold text-cocoa pt-1">كل المنتجات</h3>
         </div>
       )}
@@ -319,7 +324,7 @@ function Catalog({ info, products, allCount, cats, hasOffers, newArrivals, bestS
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
           {products.map((p) => (
-            <ProductCard key={p.id} p={p} unit={priceOf(p)} inCart={cart[p.id] ?? 0} onOpen={() => onOpen(p.id)} onAdd={() => onAdd(p.id)} />
+            <ProductCard key={p.id} p={p} unit={priceOf(p)} inCart={cart[p.id] ?? 0} rating={ratings[p.id]} onOpen={() => onOpen(p.id)} onAdd={() => onAdd(p.id)} />
           ))}
         </div>
       )}
@@ -327,7 +332,7 @@ function Catalog({ info, products, allCount, cats, hasOffers, newArrivals, bestS
   )
 }
 
-function ProductCard({ p, unit, inCart, onOpen, onAdd }: { p: SP; unit: number; inCart: number; onOpen: () => void; onAdd: () => void }) {
+function ProductCard({ p, unit, inCart, rating, onOpen, onAdd }: { p: SP; unit: number; inCart: number; rating?: SRating; onOpen: () => void; onAdd: () => void }) {
   const hasDisc = unit < p.price
   const off = hasDisc ? Math.round((1 - unit / p.price) * 100) : 0
   const out = p.stock_qty <= 0
@@ -339,6 +344,9 @@ function ProductCard({ p, unit, inCart, onOpen, onAdd }: { p: SP; unit: number; 
         {out && <span className="absolute inset-0 bg-white/55 grid place-items-center text-cocoa font-bold text-sm">نفد المخزون</span>}
       </div>
       <p className="font-bold text-sm text-cocoa leading-tight line-clamp-2 min-h-[2.5rem]">{p.name}</p>
+      {rating && rating.review_count > 0 && (
+        <div className="flex items-center gap-1 mt-0.5"><Stars n={rating.avg_rating} size={11} /><span className="text-[10px] text-cocoa-light">({rating.review_count})</span></div>
+      )}
       <div className="flex items-center gap-1.5 mt-1 flex-wrap">
         <span className="font-extrabold text-rose">{egp(unit)}</span>
         {hasDisc && <span className="text-[11px] text-cocoa-light line-through">{egp(p.price)}</span>}
@@ -354,8 +362,8 @@ function ProductCard({ p, unit, inCart, onOpen, onAdd }: { p: SP; unit: number; 
   )
 }
 
-function ProductRow({ title, items, priceOf, onOpen, onAdd, cart }: {
-  title: string; items: SP[]
+function ProductRow({ title, items, priceOf, ratings, onOpen, onAdd, cart }: {
+  title: string; items: SP[]; ratings: Record<string, SRating>
   priceOf: (p: SP) => number; onOpen: (id: string) => void; onAdd: (id: string) => void; cart: Record<string, number>
 }) {
   return (
@@ -364,7 +372,7 @@ function ProductRow({ title, items, priceOf, onOpen, onAdd, cart }: {
       <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x">
         {items.map((p) => (
           <div key={p.id} className="w-40 sm:w-44 shrink-0 snap-start">
-            <ProductCard p={p} unit={priceOf(p)} inCart={cart[p.id] ?? 0} onOpen={() => onOpen(p.id)} onAdd={() => onAdd(p.id)} />
+            <ProductCard p={p} unit={priceOf(p)} inCart={cart[p.id] ?? 0} rating={ratings[p.id]} onOpen={() => onOpen(p.id)} onAdd={() => onAdd(p.id)} />
           </div>
         ))}
       </div>
@@ -374,13 +382,14 @@ function ProductRow({ title, items, priceOf, onOpen, onAdd, cart }: {
 
 /* ───────────────────────── Product detail ───────────────────────── */
 
-function ProductDetail({ p, info, catName, unit, inCart, related, priceOf, onAdd, onBuy, onOpen, onBack }: {
+function ProductDetail({ p, info, catName, unit, inCart, related, priceOf, ratings, onAdd, onBuy, onOpen, onBack }: {
   p: SP; info: SInfo | null; catName: string | null
   unit: number; inCart: number
-  related: SP[]; priceOf: (p: SP) => number
+  related: SP[]; priceOf: (p: SP) => number; ratings: Record<string, SRating>
   onAdd: (id: string, n: number) => void; onBuy: (id: string, n: number) => void
   onOpen: (id: string) => void; onBack: () => void
 }) {
+  const rating = ratings[p.id]
   const [qty, setQty] = useState(1)
   const gallery = [p.image_url, ...(p.images ?? [])].filter(Boolean) as string[]
   const [mainImg, setMainImg] = useState(gallery[0] ?? '')
@@ -430,6 +439,9 @@ function ProductDetail({ p, info, catName, unit, inCart, related, priceOf, onAdd
         <div>
           {catName && <span className="chip bg-blush text-rose"><Tag size={12} /> {catName}</span>}
           <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-cocoa mt-2 leading-tight">{p.name}</h1>
+          {rating && rating.review_count > 0 && (
+            <a href="#reviews" className="inline-flex items-center gap-1.5 mt-2"><Stars n={rating.avg_rating} size={15} /><span className="text-sm text-cocoa-light">{rating.avg_rating} · {rating.review_count} تقييم</span></a>
+          )}
 
           <div className="flex items-end gap-3 mt-4">
             <span className="font-extrabold text-rose text-3xl">{egp(unit)}</span>
@@ -514,6 +526,9 @@ function ProductDetail({ p, info, catName, unit, inCart, related, priceOf, onAdd
         </div>
       </div>
 
+      {/* Reviews */}
+      <div id="reviews"><ProductReviews productId={p.id} rating={rating} /></div>
+
       {/* Related */}
       {related.length > 0 && (
         <section className="mt-12">
@@ -523,7 +538,7 @@ function ProductDetail({ p, info, catName, unit, inCart, related, priceOf, onAdd
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
             {related.map((r) => (
-              <ProductCard key={r.id} p={r} unit={priceOf(r)} inCart={0} onOpen={() => onOpen(r.id)} onAdd={() => onAdd(r.id, 1)} />
+              <ProductCard key={r.id} p={r} unit={priceOf(r)} inCart={0} rating={ratings[r.id]} onOpen={() => onOpen(r.id)} onAdd={() => onAdd(r.id, 1)} />
             ))}
           </div>
         </section>
@@ -542,6 +557,78 @@ function Accordion({ title, children, defaultOpen = false }: { title: string; ch
       </button>
       {open && <div className="px-4 pb-4 -mt-1 text-sm text-cocoa-light leading-relaxed">{children}</div>}
     </div>
+  )
+}
+
+function ProductReviews({ productId, rating }: { productId: string; rating?: SRating }) {
+  const [reviews, setReviews] = useState<SReview[]>([])
+  const [name, setName] = useState('')
+  const [stars, setStars] = useState(5)
+  const [comment, setComment] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState(false)
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase.from('store_reviews').select('*').eq('product_id', productId).order('created_at', { ascending: false })
+      if (!cancelled) setReviews(((data as SReview[]) ?? []).map((r) => ({ ...r, rating: Number(r.rating) })))
+    })()
+    return () => { cancelled = true }
+  }, [productId])
+
+  async function submit() {
+    if (!name.trim()) { toast('اكتبي اسمك'); return }
+    setBusy(true)
+    try {
+      const { error } = await supabase.from('reviews').insert({ product_id: productId, customer_name: name.trim(), rating: stars, comment: comment.trim() || null })
+      if (error) throw error
+      setDone(true); setName(''); setComment(''); setStars(5); setOpen(false)
+    } catch { toast('حصل خطأ، حاولي تاني') } finally { setBusy(false) }
+  }
+
+  return (
+    <section className="mt-10 scroll-mt-24">
+      <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+        <h3 className="font-display text-xl font-extrabold text-cocoa flex items-center gap-2">
+          تقييمات العملاء
+          {rating && rating.review_count > 0 && <span className="inline-flex items-center gap-1.5 text-base font-normal"><Stars n={rating.avg_rating} /><span className="text-cocoa-light">{rating.avg_rating} ({rating.review_count})</span></span>}
+        </h3>
+        <button onClick={() => setOpen((o) => !o)} className="btn-ghost text-sm py-2 border-2 border-rose text-rose hover:bg-rose/5">اكتبي تقييمك</button>
+      </div>
+
+      {done && <div className="rounded-2xl bg-ok/10 text-ok font-bold text-center py-3 mb-4">شكراً لتقييمك 🌸 هيظهر بعد مراجعته</div>}
+
+      {open && (
+        <div className="card p-4 mb-4 space-y-3">
+          <label className="block"><span className="label">اسمك</span><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="اسمك" /></label>
+          <div>
+            <span className="label">تقييمك</span>
+            <div className="flex gap-1">{[1, 2, 3, 4, 5].map((i) => <button key={i} type="button" onClick={() => setStars(i)} aria-label={`${i} نجوم`}><Star size={30} className={i <= stars ? 'text-gold fill-gold' : 'text-pink'} /></button>)}</div>
+          </div>
+          <label className="block"><span className="label">رأيك (اختياري)</span><textarea className="input min-h-[70px]" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="إيه رأيك في المنتج؟" /></label>
+          <div className="flex justify-end gap-2"><button onClick={() => setOpen(false)} className="btn-ghost text-sm">إلغاء</button><button onClick={submit} disabled={busy} className="btn-primary">{busy ? 'جاري الإرسال…' : 'إرسال التقييم'}</button></div>
+        </div>
+      )}
+
+      {reviews.length === 0 ? (
+        <p className="text-sm text-cocoa-light">لسه مفيش تقييمات للمنتج ده — كوني أول واحدة تقيّمه 🌟</p>
+      ) : (
+        <div className="space-y-3">
+          {reviews.map((r) => (
+            <div key={r.id} className="card p-4">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-cocoa">{r.customer_name}</span>
+                <Stars n={r.rating} size={13} />
+                <span className="text-[11px] text-cocoa-light">{new Date(r.created_at).toLocaleDateString('ar-EG')}</span>
+              </div>
+              {r.comment && <p className="text-sm text-cocoa mt-1.5 leading-relaxed">{r.comment}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -950,6 +1037,10 @@ function PayChip({ icon: Icon, text }: { icon: typeof Truck; text: string }) {
 
 function Row({ label, value }: { label: string; value: string }) {
   return <div className="flex justify-between"><span className="text-cocoa-light">{label}</span><span className="text-cocoa font-semibold">{value}</span></div>
+}
+
+function Stars({ n, size = 14 }: { n: number; size?: number }) {
+  return <span className="inline-flex">{[1, 2, 3, 4, 5].map((i) => <Star key={i} size={size} className={i <= Math.round(n) ? 'text-gold fill-gold' : 'text-pink/50'} />)}</span>
 }
 
 // best-effort map an Arabic/English color name to a CSS color for the swatch

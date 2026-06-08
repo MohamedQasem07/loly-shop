@@ -340,6 +340,16 @@ export interface Discount {
   created_at: string
 }
 
+export interface Review {
+  id: string
+  product_id: string
+  customer_name: string
+  rating: number
+  comment: string | null
+  is_approved: boolean
+  created_at: string
+}
+
 export interface ShippingZone {
   id: string
   governorate: string
@@ -391,6 +401,7 @@ export const SYNC_TABLES = [
   'discounts',
   'coupons',
   'shipping_zones',
+  'reviews',
   'orders',
   'order_items',
 ] as const

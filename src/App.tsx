@@ -24,6 +24,7 @@ const Returns = lazy(() => import('@/pages/Returns'))
 const Users = lazy(() => import('@/pages/Users'))
 const Accounting = lazy(() => import('@/pages/Accounting'))
 const Orders = lazy(() => import('@/pages/Orders'))
+const Reviews = lazy(() => import('@/pages/Reviews'))
 const Store = lazy(() => import('@/pages/Store'))
 
 function Splash() {
@@ -71,6 +72,7 @@ function Routed() {
         <Route path="/users" element={<Users />} />
         <Route path="/accounting" element={<Accounting />} />
         <Route path="/orders" element={<Orders />} />
+        <Route path="/reviews" element={<Reviews />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

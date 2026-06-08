@@ -2,7 +2,7 @@ import { Suspense, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   BarChart3, Boxes, Building2, Calculator, ClipboardList, Home, LogOut, MoreHorizontal, Package,
-  ReceiptText, RefreshCw, Settings as SettingsIcon, ShoppingBag, Truck,
+  ReceiptText, RefreshCw, Settings as SettingsIcon, ShoppingBag, Star, Truck,
   Undo2, UserCog, Users, Wallet, Wifi, WifiOff, X,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -25,6 +25,7 @@ const NAV: NavItem[] = [
   { to: '/', label: 'الرئيسية', icon: Home },
   { to: '/pos', label: 'نقطة البيع', icon: ShoppingBag, roles: ['owner', 'manager', 'cashier'] },
   { to: '/orders', label: 'أوردرات المتجر', icon: ClipboardList, roles: ['owner', 'manager'] },
+  { to: '/reviews', label: 'التقييمات', icon: Star, roles: ['owner', 'manager'] },
   { to: '/products', label: 'المنتجات', icon: Package },
   { to: '/purchases', label: 'استلام بضاعة', icon: Truck, roles: ['owner', 'manager', 'stock'] },
   { to: '/stock', label: 'حركات المخزون', icon: Boxes, roles: ['owner', 'manager', 'stock'] },
