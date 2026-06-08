@@ -78,16 +78,19 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="font-display text-2xl font-extrabold text-cocoa">
-          أهلاً {profile?.full_name?.split(' ')[0] ?? ''} 🌸
-        </h1>
-        <p className="text-sm text-cocoa-light mt-0.5">{format(new Date(), 'EEEE d MMMM yyyy', { locale: ar })}</p>
+      <div className="flex items-center gap-3">
+        <span className="w-1.5 h-10 rounded-full bg-rose-grad hidden sm:block shrink-0" />
+        <div>
+          <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-cocoa">
+            أهلاً {profile?.full_name?.split(' ')[0] ?? ''} 🌸
+          </h1>
+          <p className="text-sm text-cocoa-light mt-0.5">{format(new Date(), 'EEEE d MMMM yyyy', { locale: ar })}</p>
+        </div>
       </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Stat icon={<ShoppingBag />} label="مبيعات اليوم" value={money(stats.todayTotal)} tone="rose" />
+        <Stat icon={<ShoppingBag />} label="مبيعات اليوم" value={money(stats.todayTotal)} tone="rose" filled />
         <Stat icon={<TrendingUp />} label="ربح اليوم" value={money(stats.todayProfit)} tone="gold" />
         <Stat icon={<Receipt />} label="عدد الفواتير" value={num(stats.count)} tone="cocoa" />
         <Stat icon={<Coins />} label="مصاريف اليوم" value={money(stats.todayExpenses)} tone="danger" />
@@ -202,18 +205,30 @@ export default function Dashboard() {
   )
 }
 
-function Stat({ icon, label, value, tone }: { icon: ReactNode; label: string; value: string; tone: 'rose' | 'gold' | 'cocoa' | 'danger' }) {
-  const tones: Record<string, string> = {
-    rose: 'bg-rose-grad text-white',
-    gold: 'bg-gold-grad text-white',
-    cocoa: 'bg-cocoa text-white',
-    danger: 'bg-danger text-white',
+function Stat({ icon, label, value, tone, filled }: { icon: ReactNode; label: string; value: string; tone: 'rose' | 'gold' | 'cocoa' | 'danger'; filled?: boolean }) {
+  if (filled) {
+    return (
+      <div className="relative overflow-hidden rounded-3xl p-4 bg-rose-grad text-white shadow-soft">
+        <div className="absolute -top-8 -left-8 w-28 h-28 rounded-full bg-white/15 blur-xl" />
+        <div className="relative">
+          <div className="w-11 h-11 rounded-2xl grid place-items-center mb-3 bg-white/20">{icon}</div>
+          <p className="text-xs text-white/80 font-bold">{label}</p>
+          <p className="font-display text-2xl font-extrabold mt-0.5 tnum">{value}</p>
+        </div>
+      </div>
+    )
+  }
+  const tints: Record<string, string> = {
+    rose: 'bg-blush text-rose',
+    gold: 'bg-gold/15 text-gold-dark',
+    cocoa: 'bg-cocoa/10 text-cocoa',
+    danger: 'bg-danger/12 text-danger',
   }
   return (
     <div className="card card-hover p-4">
-      <div className={`w-11 h-11 rounded-2xl grid place-items-center mb-3 shadow-soft ${tones[tone]}`}>{icon}</div>
+      <div className={`w-11 h-11 rounded-2xl grid place-items-center mb-3 ${tints[tone]}`}>{icon}</div>
       <p className="text-xs text-cocoa-light font-bold">{label}</p>
-      <p className="font-display text-xl font-extrabold text-cocoa mt-0.5 tnum">{value}</p>
+      <p className="font-display text-2xl font-extrabold text-cocoa mt-0.5 tnum">{value}</p>
     </div>
   )
 }

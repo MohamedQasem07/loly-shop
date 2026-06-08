@@ -60,10 +60,13 @@ export function PageHeader({
   action?: ReactNode
 }) {
   return (
-    <div className="flex items-end justify-between gap-3 mb-5">
-      <div>
-        <h1 className="font-display text-2xl font-extrabold text-cocoa">{title}</h1>
-        {subtitle && <p className="text-sm text-cocoa-light mt-0.5">{subtitle}</p>}
+    <div className="flex items-end justify-between gap-3 mb-6 flex-wrap">
+      <div className="flex items-center gap-3">
+        <span className="w-1.5 h-9 rounded-full bg-rose-grad hidden sm:block shrink-0" />
+        <div>
+          <h1 className="font-display text-2xl sm:text-[28px] font-extrabold text-cocoa leading-tight">{title}</h1>
+          {subtitle && <p className="text-sm text-cocoa-light mt-0.5">{subtitle}</p>}
+        </div>
       </div>
       {action}
     </div>

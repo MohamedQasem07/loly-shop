@@ -273,7 +273,7 @@ function Catalog({ info, products, allCount, cats, hasOffers, newArrivals, bestS
   return (
     <>
       {/* Hero */}
-      <section className="relative overflow-hidden rounded-3xl text-white p-6 sm:p-9 mb-5 shadow-soft">
+      <section className="relative overflow-hidden rounded-3xl text-white p-7 sm:p-10 mb-5 shadow-lift animate-fadeIn">
         {info?.store_cover_url ? (
           <>
             <img src={info.store_cover_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
@@ -282,15 +282,16 @@ function Catalog({ info, products, allCount, cats, hasOffers, newArrivals, bestS
         ) : (
           <>
             <div className="absolute inset-0 bg-rose-grad" />
-            <div className="absolute -top-10 -left-10 w-44 h-44 rounded-full bg-white/10 blur-2xl" />
-            <div className="absolute -bottom-12 right-10 w-52 h-52 rounded-full bg-white/10 blur-2xl" />
+            <div className="absolute -top-10 -left-10 w-48 h-48 rounded-full bg-white/15 blur-2xl" />
+            <div className="absolute -bottom-12 right-10 w-56 h-56 rounded-full bg-gold/25 blur-2xl" />
           </>
         )}
+        <Sparkles className="absolute top-5 left-5 w-11 h-11 text-white/20 animate-floaty hidden sm:block" />
         <div className="relative max-w-xl">
-          <span className="inline-flex items-center gap-1.5 bg-white/15 rounded-full px-3 py-1 text-xs font-bold"><Sparkles size={14} /> {info?.store_name ?? 'Loly Store'}</span>
-          <h2 className="font-display text-2xl sm:text-4xl font-extrabold mt-3 leading-tight drop-shadow">{info?.store_about ? info.store_name : 'إكسسوارات تكمّل أناقتك ✨'}</h2>
-          <p className="opacity-95 mt-2 text-sm sm:text-base drop-shadow">{info?.store_about ?? 'تشكيلة مختارة من أحلى الإكسسوارات — اطلبي أونلاين والدفع عند الاستلام.'}</p>
-          <div className="flex flex-wrap gap-2 mt-4">
+          <span className="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur rounded-full px-3.5 py-1.5 text-xs font-extrabold"><Sparkles size={14} /> {info?.store_name ?? 'Loly Store'} 🌸</span>
+          <h2 className="font-display text-3xl sm:text-5xl font-extrabold mt-3.5 leading-[1.12] drop-shadow">{info?.store_about ? info.store_name : 'إكسسوارات تكمّل أناقتك ✨'}</h2>
+          <p className="opacity-95 mt-3 text-sm sm:text-lg drop-shadow max-w-md">{info?.store_about ?? 'تشكيلة مختارة من أحلى الإكسسوارات — اطلبي أونلاين والدفع عند الاستلام.'}</p>
+          <div className="flex flex-wrap gap-2 mt-5">
             <HeroPill icon={Truck} text="شحن لكل المحافظات" />
             <HeroPill icon={Banknote} text="الدفع عند الاستلام" />
             <HeroPill icon={RefreshCcw} text="استبدال خلال ١٤ يوم" />
@@ -1061,7 +1062,7 @@ function TrackOrder({ onBack }: { onBack: () => void }) {
 }
 
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return <button onClick={onClick} className={cn('shrink-0 rounded-full px-4 py-1.5 text-sm font-bold border transition', active ? 'bg-rose text-white border-rose shadow-soft' : 'bg-white text-cocoa-light border-pink hover:border-rose/40')}>{children}</button>
+  return <button onClick={onClick} className={cn('shrink-0 rounded-full px-4 py-2 text-sm font-extrabold border transition', active ? 'bg-rose-grad text-white border-transparent shadow-soft' : 'bg-white text-cocoa-light border-pink hover:border-rose/40 hover:text-rose')}>{children}</button>
 }
 
 function HeroPill({ icon: Icon, text }: { icon: typeof Truck; text: string }) {
