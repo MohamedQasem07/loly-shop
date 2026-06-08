@@ -160,7 +160,7 @@ export default function Store() {
 
   const selected = products.find((p) => p.id === selectedId) ?? null
 
-  if (loading) return <div className="min-h-screen grid place-items-center bg-cream"><img src={LOGO_URL} className="w-16 h-16 rounded-2xl animate-pulse" /></div>
+  if (loading) return <StoreSkeleton />
 
   if (info && !info.store_open) {
     return (
@@ -286,11 +286,18 @@ function Catalog({ info, products, allCount, cats, hasOffers, newArrivals, bestS
             <div className="absolute -bottom-12 right-10 w-56 h-56 rounded-full bg-gold/25 blur-2xl" />
           </>
         )}
-        <Sparkles className="absolute top-5 left-5 w-11 h-11 text-white/20 animate-floaty hidden sm:block" />
+        <Sparkles className="absolute top-5 left-5 w-11 h-11 text-white/25 animate-floaty hidden sm:block" />
+        <Heart className="absolute bottom-7 left-1/4 w-8 h-8 text-white/15 animate-floatyX hidden sm:block" />
+        <Sparkles className="absolute top-1/2 left-12 w-5 h-5 text-white/20 animate-floatyX hidden lg:block" />
         <div className="relative max-w-xl">
-          <span className="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur rounded-full px-3.5 py-1.5 text-xs font-extrabold"><Sparkles size={14} /> {info?.store_name ?? 'Loly Store'} 🌸</span>
+          <span className="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur rounded-full px-3.5 py-1.5 text-xs font-extrabold animate-pop"><Sparkles size={14} /> {info?.store_name ?? 'Loly Store'} 🌸</span>
           <h2 className="font-display text-3xl sm:text-5xl font-extrabold mt-3.5 leading-[1.12] drop-shadow">{info?.store_about ? info.store_name : 'إكسسوارات تكمّل أناقتك ✨'}</h2>
           <p className="opacity-95 mt-3 text-sm sm:text-lg drop-shadow max-w-md">{info?.store_about ?? 'تشكيلة مختارة من أحلى الإكسسوارات — اطلبي أونلاين والدفع عند الاستلام.'}</p>
+          {hasOffers && (
+            <button onClick={() => setCat('offers')} className="inline-flex items-center gap-2 bg-white text-rose-dark font-extrabold rounded-2xl px-5 py-2.5 text-sm shadow-soft hover:shadow-lift hover:-translate-y-0.5 transition mt-5">
+              <Sparkles size={16} className="text-gold" /> تسوّقي العروض
+            </button>
+          )}
           <div className="flex flex-wrap gap-2 mt-5">
             <HeroPill icon={Truck} text="شحن لكل المحافظات" />
             <HeroPill icon={Banknote} text="الدفع عند الاستلام" />
@@ -326,41 +333,67 @@ function Catalog({ info, products, allCount, cats, hasOffers, newArrivals, bestS
         <div className="card"><div className="py-20 text-center text-cocoa-light"><ShoppingBag className="mx-auto mb-2 text-rose/50" size={44} /><p className="font-semibold">مفيش منتجات متاحة دلوقتي</p><p className="text-sm mt-1">تابعينا، هنضيف تشكيلة جديدة قريب 🌸</p></div></div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-          {products.map((p) => (
-            <ProductCard key={p.id} p={p} unit={priceOf(p)} inCart={cart[p.id] ?? 0} rating={ratings[p.id]} onOpen={() => onOpen(p.id)} onAdd={() => onAdd(p.id)} />
+          {products.map((p, i) => (
+            <ProductCard key={p.id} p={p} unit={priceOf(p)} inCart={cart[p.id] ?? 0} rating={ratings[p.id]} onOpen={() => onOpen(p.id)} onAdd={() => onAdd(p.id)} index={i} />
           ))}
         </div>
       )}
+
+      {/* Trust / features strip */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 mt-7">
+        {[
+          { icon: Truck, t: 'شحن لكل المحافظات', s: 'توصيل ١-٣ أيام' },
+          { icon: Banknote, t: 'الدفع عند الاستلام', s: 'أو إنستاباي / فيزا' },
+          { icon: RefreshCcw, t: 'استبدال خلال ١٤ يوم', s: 'بدون أي تعقيد' },
+        ].map(({ icon: Icon, t, s }, i) => (
+          <div key={t} style={{ animationDelay: `${i * 90}ms` }} className="card card-hover p-3 sm:p-4 flex flex-col sm:flex-row items-center text-center sm:text-right gap-2 sm:gap-3 animate-fadeUp">
+            <span className="w-11 h-11 rounded-2xl bg-rose-grad text-white grid place-items-center shrink-0 shadow-soft"><Icon size={20} /></span>
+            <div className="min-w-0 leading-tight">
+              <p className="font-extrabold text-cocoa text-xs sm:text-sm">{t}</p>
+              <p className="text-[10px] sm:text-xs text-cocoa-light mt-0.5">{s}</p>
+            </div>
+          </div>
+        ))}
+      </div>
     </>
   )
 }
 
-function ProductCard({ p, unit, inCart, rating, onOpen, onAdd }: { p: SP; unit: number; inCart: number; rating?: SRating; onOpen: () => void; onAdd: () => void }) {
+function ProductCard({ p, unit, inCart, rating, onOpen, onAdd, index = 0 }: { p: SP; unit: number; inCart: number; rating?: SRating; onOpen: () => void; onAdd: () => void; index?: number }) {
   const hasDisc = unit < p.price
   const off = hasDisc ? Math.round((1 - unit / p.price) * 100) : 0
   const out = p.stock_qty <= 0
   const hasVariants = (p.colors?.length ?? 0) > 0 || (p.sizes?.length ?? 0) > 0
   const [fav, setFav] = useState(false)
   return (
-    <div onClick={onOpen} className="card p-2.5 sm:p-3 flex flex-col text-right cursor-pointer group hover:shadow-lift hover:-translate-y-1 transition-all">
+    <div
+      onClick={onOpen}
+      style={{ animationDelay: `${Math.min(index, 11) * 60}ms` }}
+      className="card p-2.5 sm:p-3 flex flex-col text-right cursor-pointer group hover:shadow-lift hover:-translate-y-1.5 transition-all duration-300 animate-fadeUp"
+    >
       <div className="aspect-square rounded-2xl bg-blush mb-2.5 overflow-hidden grid place-items-center text-rose/40 relative">
-        {p.image_url ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" /> : <ImageOff size={30} />}
+        {p.image_url ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-110" /> : <ImageOff size={30} />}
+        <div className="absolute inset-0 bg-gradient-to-t from-rose-dark/15 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         <button
           onClick={(e) => { e.stopPropagation(); setFav((f) => !f) }}
-          className="absolute top-2 left-2 w-8 h-8 rounded-full bg-white/90 backdrop-blur grid place-items-center shadow-sm hover:scale-110 active:scale-95 transition"
+          className="absolute top-2 left-2 w-8 h-8 rounded-full bg-white/90 backdrop-blur grid place-items-center shadow-sm hover:scale-110 active:scale-90 transition"
           aria-label="إضافة للمفضلة"
         >
-          <Heart size={15} className={cn('transition-colors', fav ? 'text-rose fill-rose' : 'text-rose/70')} />
+          <Heart size={15} className={cn('transition-all', fav ? 'text-rose fill-rose scale-110' : 'text-rose/70')} />
         </button>
-        {hasDisc && <span className="absolute top-2 right-2 bg-gold-grad text-white text-[10px] font-extrabold rounded-full px-2 py-0.5 shadow">خصم {off}%</span>}
-        {out && <span className="absolute inset-0 bg-white/55 grid place-items-center text-cocoa font-bold text-sm">نفد المخزون</span>}
+        {hasDisc && <span className="absolute top-2 right-2 bg-gold-grad text-white text-[10px] font-extrabold rounded-full px-2 py-0.5 shadow animate-pop">خصم {off}%</span>}
+        {out && <span className="absolute inset-0 bg-white/60 backdrop-blur-[1px] grid place-items-center text-cocoa font-bold text-sm">نفد المخزون</span>}
       </div>
       <p className="font-display font-bold text-sm text-cocoa leading-tight line-clamp-2 min-h-[2.5rem]">{p.name}</p>
-      {rating && rating.review_count > 0 && (
-        <div className="flex items-center gap-1 mt-0.5"><Stars n={rating.avg_rating} size={11} /><span className="text-[10px] text-cocoa-light">({rating.review_count})</span></div>
-      )}
+      <div className="flex items-center gap-1 mt-0.5 min-h-[1rem]">
+        {rating && rating.review_count > 0 ? (
+          <><Stars n={rating.avg_rating} size={11} /><span className="text-[10px] text-cocoa-light">({rating.review_count})</span></>
+        ) : (
+          <span className="inline-flex gap-0.5 text-pink/60">{[0, 1, 2, 3, 4].map((s) => <Star key={s} size={11} />)}</span>
+        )}
+      </div>
       <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-        <span className="font-extrabold text-rose tnum">{egp(unit)}</span>
+        <span className="font-extrabold text-rose tnum text-[15px]">{egp(unit)}</span>
         {hasDisc && <span className="text-[11px] text-cocoa-light line-through tnum">{egp(p.price)}</span>}
       </div>
       <button
@@ -368,6 +401,7 @@ function ProductCard({ p, unit, inCart, rating, onOpen, onAdd }: { p: SP; unit: 
         disabled={out}
         className={cn('btn-primary w-full mt-2.5 py-2 text-sm', out && 'opacity-50')}
       >
+        {!out && <ShoppingBag size={15} />}
         {out ? 'غير متاح' : hasVariants ? 'اختاري' : inCart ? `في السلة (${inCart})` : 'أضف للسلة'}
       </button>
     </div>
@@ -382,9 +416,9 @@ function ProductRow({ title, items, priceOf, ratings, onOpen, onAdd, cart }: {
     <section>
       <h3 className="font-display text-lg font-extrabold text-cocoa mb-3">{title}</h3>
       <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x">
-        {items.map((p) => (
+        {items.map((p, i) => (
           <div key={p.id} className="w-40 sm:w-44 shrink-0 snap-start">
-            <ProductCard p={p} unit={priceOf(p)} inCart={cart[p.id] ?? 0} rating={ratings[p.id]} onOpen={() => onOpen(p.id)} onAdd={() => onAdd(p.id)} />
+            <ProductCard p={p} unit={priceOf(p)} inCart={cart[p.id] ?? 0} rating={ratings[p.id]} onOpen={() => onOpen(p.id)} onAdd={() => onAdd(p.id)} index={i} />
           </div>
         ))}
       </div>
@@ -1084,6 +1118,37 @@ function PayChip({ icon: Icon, text }: { icon: typeof Truck; text: string }) {
 
 function Row({ label, value }: { label: string; value: string }) {
   return <div className="flex justify-between"><span className="text-cocoa-light">{label}</span><span className="text-cocoa font-semibold">{value}</span></div>
+}
+
+function Sk({ className }: { className?: string }) {
+  return (
+    <div className={cn('relative overflow-hidden bg-pink/30 rounded-2xl', className)}>
+      <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/70 to-transparent" />
+    </div>
+  )
+}
+
+function StoreSkeleton() {
+  return (
+    <div className="min-h-screen bg-cream">
+      <div className="h-16 bg-gradient-to-l from-rose to-rose-dark" />
+      <div className="max-w-6xl mx-auto px-4 py-5 space-y-5">
+        <Sk className="h-44 sm:h-52 rounded-3xl" />
+        <Sk className="h-12" />
+        <div className="flex gap-2">{Array.from({ length: 6 }).map((_, i) => <Sk key={i} className="h-9 w-20 rounded-full shrink-0" />)}</div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="card p-3 space-y-2.5">
+              <Sk className="aspect-square" />
+              <Sk className="h-4 w-3/4" />
+              <Sk className="h-4 w-1/2" />
+              <Sk className="h-9 rounded-2xl" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function Stars({ n, size = 14 }: { n: number; size?: number }) {
